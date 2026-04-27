@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Complaint Detail — GMS Admin</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏛️</text></svg>" />
+  <link href="https://fonts.googleapis.com/css2?family=Mukta:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    .complaint-header {
+      background: var(--navy);
+      border-radius: var(--radius); padding: 28px 32px; margin-bottom: 24px; color: #fff;
+    }
+    .complaint-header .cid { font-family: 'JetBrains Mono', monospace; font-size: 0.88rem; color: rgba(255,255,255,0.6); margin-bottom: 8px; }
+    .complaint-header h2   { font-family: 'Playfair Display', serif; font-size: 1.5rem; margin-bottom: 16px; }
+    .meta-chips { display: flex; gap: 10px; flex-wrap: wrap; }
+    .meta-chip  { padding: 4px 12px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; background: rgba(255,255,255,0.12); color: #fff; }
+
+    /* Timeline */
+    .timeline { position: relative; padding: 8px 0; }
+    .timeline::before { content: ''; position: absolute; left: 24px; top: 0; bottom: 0; width: 2px; background: #e5e7eb; }
+    .tl-item { display: flex; gap: 20px; margin-bottom: 28px; position: relative; }
+    .tl-dot {
+      width: 48px; height: 48px; border-radius: 50%; background: var(--blue);
+      display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
+      flex-shrink: 0; position: relative; z-index: 1;
+      border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .tl-dot.success { background: var(--success); }
+    .tl-dot.danger  { background: var(--danger); }
+    .tl-dot.warning { background: var(--warning); }
+    .tl-dot.purple  { background: #6b21a8; }
+    .tl-dot.admin   { background: var(--navy-mid); }
+    .tl-content { flex: 1; padding-top: 8px; }
+    .tl-content .tl-status { font-weight: 700; color: var(--navy); margin-bottom: 4px; }
+    .tl-content .tl-remark { font-size: 0.85rem; color: #374151; margin-bottom: 4px; line-height: 1.5; }
+    .tl-content .tl-time   { font-size: 0.75rem; color: var(--muted); }
+
+    /* Proof */
+    .proof-img { max-width: 100%; max-height: 380px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+    .proof-pdf-link { display: inline-flex; align-items: center; gap: 10px; padding: 14px 24px; background: #f0f7ff; border: 2px solid var(--blue); border-radius: 10px; color: var(--navy); font-weight: 600; text-decoration: none; transition: all 0.2s; }
+    .proof-pdf-link:hover { background: var(--blue); color: #fff; }
+
+    /* Update form */
+    .update-form { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 24px; }
+    .update-form h5 { font-family: 'Playfair Display', serif; color: var(--navy); margin-bottom: 16px; }
+    .remark-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .remark-chip { padding: 6px 12px; border: 1.5px solid #dde3ed; border-radius: 20px; font-size: 0.78rem; cursor: pointer; transition: all 0.2s; background: #fff; }
+    .remark-chip:hover { border-color: var(--blue); background: #f0f7ff; color: var(--blue); }
+
+    /* Citizen info */
+    .citizen-info-row { display: flex; gap: 20px; flex-wrap: wrap; }
+    .citizen-info-row .info-item { flex: 1; min-width: 120px; }
+    .citizen-info-row .info-item .label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+    .citizen-info-row .info-item .value { font-weight: 600; font-size: 0.88rem; color: var(--navy); }
+  </style>
+</head>
+<body>
+
+<div class="gms-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">GMS</div>
+      <h6>Admin Control</h6>
+      <h5>GMS</h5>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">Management</div>
+      <a href="/admin/dashboard"><span class="nav-icon">-</span> Dashboard</a>
+      <a href="/admin/complaints"><span class="nav-icon">-</span> All Complaints</a>
+      <div class="nav-section-title">Portal</div>
+      <a href="/"><span class="nav-icon">-</span> Home Portal</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="avatar" id="sidebar-avatar" style="background:var(--accent)">A</div>
+        <div>
+          <div class="user-name" id="sidebar-user-name">Loading...</div>
+          <div class="user-role" id="sidebar-user-role">Administrator</div>
+        </div>
+      </div>
+      <button class="btn-logout">Logout</button>
+    </div>
+  </aside>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+        <div>
+          <div class="topbar-title">Complaint Detail</div>
+          <div class="topbar-subtitle" id="topbar-cid">Loading...</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <a href="/admin/complaints" class="btn btn-outline btn-sm">← All Complaints</a>
+      </div>
+    </header>
+
+    <main class="page-content">
+      <div id="page-loader" style="text-align:center;padding:60px">
+        <span class="loading-spinner dark"></span>
+        <p style="margin-top:12px;color:var(--muted)">Loading complaint...</p>
+      </div>
+
+      <div id="complaint-content" style="display:none">
+        <!-- Complaint Header -->
+        <div class="complaint-header">
+          <div class="cid" id="cid-display"></div>
+          <h2 id="complaint-title">Loading...</h2>
+          <div class="meta-chips">
+            <div class="meta-chip" id="chip-status"></div>
+            <div class="meta-chip" id="chip-priority"></div>
+            <div class="meta-chip" id="chip-category"></div>
+            <div class="meta-chip" id="chip-date"></div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:3fr 2fr;gap:20px" id="main-grid">
+          <!-- Left Column -->
+          <div style="display:flex;flex-direction:column;gap:20px">
+            <!-- Complaint Info -->
+            <div class="card">
+              <div class="card-header"><h5>📋 Complaint Information</h5></div>
+              <div class="card-body">
+                <div class="form-group">
+                  <label class="form-label">Description</label>
+                  <div id="complaint-description" style="background:#f8fafc;padding:14px;border-radius:8px;font-size:0.9rem;line-height:1.7;color:#374151;border:1px solid #dde3ed"></div>
+                </div>
+                <div class="form-group" id="location-group" style="display:none">
+                  <label class="form-label">📍 Location</label>
+                  <div id="complaint-location" style="font-size:0.9rem;color:#374151"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Citizen Info -->
+            <div class="card">
+              <div class="card-header"><h5>👤 Citizen Information</h5></div>
+              <div class="card-body">
+                <div class="citizen-info-row">
+                  <div class="info-item">
+                    <div class="label">Name</div>
+                    <div class="value" id="citizen-name">—</div>
+                  </div>
+                  <div class="info-item">
+                    <div class="label">Email</div>
+                    <div class="value" id="citizen-email">—</div>
+                  </div>
+                  <div class="info-item">
+                    <div class="label">Phone</div>
+                    <div class="value" id="citizen-phone">—</div>
+                  </div>
+                </div>
+                <div class="form-group" id="citizen-address-group" style="margin-top:14px;display:none">
+                  <div class="label" style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Address</div>
+                  <div id="citizen-address" style="font-size:0.88rem;color:#374151"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Proof -->
+            <div class="card" id="proof-card" style="display:none">
+              <div class="card-header"><h5>📎 Uploaded Proof</h5></div>
+              <div class="card-body" style="text-align:center" id="proof-container"></div>
+            </div>
+
+            <!-- Update Status Form -->
+            <div class="card">
+              <div class="card-header"><h5>✏️ Update Complaint Status</h5></div>
+              <div class="card-body">
+                <div class="update-form">
+                  <div class="form-group">
+                    <label class="form-label">New Status *</label>
+                    <select id="new-status" class="form-select">
+                      <option value="">— Select Status —</option>
+                      <option>Pending</option>
+                      <option>In Progress</option>
+                      <option>Resolved</option>
+                      <option>Rejected</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Admin Remarks / Response *</label>
+                    <div class="remark-grid" id="quick-remarks">
+                      <span class="remark-chip" onclick="setRemark(this)">Complaint received and under review</span>
+                      <span class="remark-chip" onclick="setRemark(this)">Sanitation team notified</span>
+                      <span class="remark-chip" onclick="setRemark(this)">Need more details from citizen</span>
+                      <span class="remark-chip" onclick="setRemark(this)">Field inspection scheduled</span>
+                      <span class="remark-chip" onclick="setRemark(this)">Issue resolved by concerned team</span>
+                      <span class="remark-chip" onclick="setRemark(this)">Rejected due to insufficient proof</span>
+                      <span class="remark-chip" onclick="setRemark(this)">Duplicate complaint</span>
+                      <span class="remark-chip" onclick="setRemark(this)">Outside jurisdiction — forwarded</span>
+                    </div>
+                    <textarea id="admin-remark" class="form-control" rows="3"
+                      placeholder="Add your admin remark or response here..." minlength="5"></textarea>
+                  </div>
+                  <div id="update-alert"></div>
+                  <button class="btn btn-accent btn-lg" style="width:100%;justify-content:center;margin-top:8px" id="update-btn" onclick="updateStatus()">
+                    💾 Update Status & Send Remark
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Timeline -->
+          <div>
+            <div class="card" style="position:sticky;top:80px">
+              <div class="card-header"><h5>📜 Complaint Timeline</h5></div>
+              <div class="card-body">
+                <div class="timeline" id="timeline-container">
+                  <div style="text-align:center;padding:20px">
+                    <span class="loading-spinner dark"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+  if (!Auth.requireAuth('admin')) throw new Error('Admin required');
+  setupSidebar();
+
+  const pathParts   = window.location.pathname.split('/');
+  const complaintId = pathParts[pathParts.length - 1];
+  document.getElementById('topbar-cid').textContent = complaintId;
+
+  let complaint = null;
+
+  function setRemark(el) {
+    document.getElementById('admin-remark').value = el.textContent;
+  }
+
+  async function loadComplaint() {
+    const { ok, data } = await API.get(`/admin/complaints/${complaintId}`);
+
+    document.getElementById('page-loader').style.display   = 'none';
+    document.getElementById('complaint-content').style.display = 'block';
+
+    if (!ok || !data.success) {
+      document.getElementById('complaint-content').innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">❌</div>
+          <h5>Complaint Not Found</h5>
+          <a href="/admin/complaints" class="btn btn-primary" style="margin-top:12px">← Back to List</a>
+        </div>`;
+      return;
+    }
+
+    complaint = data.complaint;
+
+    // Header
+    document.getElementById('cid-display').textContent       = complaint.complaint_id;
+    document.getElementById('complaint-title').textContent   = complaint.title;
+    document.getElementById('chip-status').textContent       = '● ' + complaint.status;
+    document.getElementById('chip-priority').textContent     = '⚑ ' + complaint.priority;
+    document.getElementById('chip-category').textContent     = Format.categoryIcon(complaint.category) + ' ' + complaint.category;
+    document.getElementById('chip-date').textContent         = '📅 ' + Format.date(complaint.created_at);
+
+    // Description
+    document.getElementById('complaint-description').textContent = complaint.description;
+
+    // Location
+    if (complaint.location) {
+      document.getElementById('location-group').style.display = 'block';
+      document.getElementById('complaint-location').textContent = complaint.location;
+    }
+
+    // Citizen info
+    document.getElementById('citizen-name').textContent  = complaint.user_name || '—';
+    document.getElementById('citizen-email').textContent = complaint.user_email || '—';
+    document.getElementById('citizen-phone').textContent = complaint.user_phone || '—';
+    if (complaint.user_address) {
+      document.getElementById('citizen-address-group').style.display = 'block';
+      document.getElementById('citizen-address').textContent = complaint.user_address;
+    }
+
+    // Proof
+    if (complaint.proof_url) {
+      document.getElementById('proof-card').style.display = 'block';
+      const ext       = complaint.proof_url.split('.').pop().toLowerCase();
+      const container = document.getElementById('proof-container');
+      if (['jpg','jpeg','png','gif'].includes(ext)) {
+        container.innerHTML = `<img src="${complaint.proof_url}" alt="Proof" class="proof-img" />`;
+      } else {
+        container.innerHTML = `<a href="${complaint.proof_url}" target="_blank" class="proof-pdf-link">
+          <span style="font-size:1.6rem">📄</span>
+          <div>
+            <div>${complaint.proof_original_name || 'proof.pdf'}</div>
+            <div style="font-size:0.72rem;opacity:0.7">Click to view PDF in new tab</div>
+          </div>
+        </a>`;
+      }
+    }
+
+    // Pre-select current status
+    const sel = document.getElementById('new-status');
+    if (sel) {
+      for (let opt of sel.options) {
+        if (opt.value === complaint.status) { opt.selected = true; break; }
+      }
+    }
+
+    // Timeline
+    renderTimeline(data.timeline || []);
+  }
+
+  function renderTimeline(timeline) {
+    const container = document.getElementById('timeline-container');
+    if (!timeline.length) {
+      container.innerHTML = `<div style="text-align:center;color:var(--muted);padding:20px">No timeline entries yet.</div>`;
+      return;
+    }
+    container.innerHTML = timeline.map(entry => {
+      const dotClass = Format.timelineDotClass(entry.action, entry.status);
+      const icon     = Format.timelineIcon(entry.action, entry.status);
+      const byText   = entry.updated_by_name
+        ? (entry.action === 'submitted' || entry.action === 'reopened' ? `by Citizen` : `by Admin — ${entry.updated_by_name}`)
+        : '';
+      return `
+      <div class="tl-item">
+        <div class="tl-dot ${dotClass}">${icon}</div>
+        <div class="tl-content">
+          <div class="tl-status">${Format.statusBadge(entry.status || 'Submitted')}</div>
+          ${entry.remark ? `<div class="tl-remark">${entry.remark}</div>` : ''}
+          <div class="tl-time">🕒 ${Format.datetime(entry.created_at)}</div>
+          ${byText ? `<div class="tl-time">${byText}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  async function updateStatus() {
+    const status = document.getElementById('new-status').value;
+    const remark = document.getElementById('admin-remark').value.trim();
+    const alertEl = document.getElementById('update-alert');
+    alertEl.innerHTML = '';
+
+    if (!status) {
+      alertEl.innerHTML = `<div class="alert alert-danger" style="margin-top:8px">❌ Please select a status.</div>`;
+      return;
+    }
+    if (remark.length < 5) {
+      alertEl.innerHTML = `<div class="alert alert-danger" style="margin-top:8px">❌ Admin remark is required (min 5 characters).</div>`;
+      return;
+    }
+
+    const btn = document.getElementById('update-btn');
+    btn.disabled = true;
+    btn.innerHTML = `<span class="loading-spinner"></span> Updating...`;
+
+    const { ok, data } = await API.put(`/admin/complaints/${complaintId}/status`, { status, remark });
+
+    btn.disabled = false;
+    btn.innerHTML = '💾 Update Status & Send Remark';
+
+    if (ok && data.success) {
+      Toast.success('Complaint updated and citizen notified!');
+      document.getElementById('admin-remark').value = '';
+      setTimeout(() => loadComplaint(), 800);
+    } else {
+      alertEl.innerHTML = `<div class="alert alert-danger" style="margin-top:8px">❌ ${data.message}</div>`;
+    }
+  }
+
+  // Responsive grid
+  function fixGrid() {
+    const grid = document.getElementById('main-grid');
+    if (grid) grid.style.gridTemplateColumns = window.innerWidth < 1024 ? '1fr' : '3fr 2fr';
+  }
+  window.addEventListener('resize', fixGrid);
+  fixGrid();
+
+  loadComplaint();
+</script>
+</body>
+</html>

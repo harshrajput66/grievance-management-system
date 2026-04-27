@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login — GMS Portal</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏛️</text></svg>" />
+  <link href="https://fonts.googleapis.com/css2?family=Mukta:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body class="auth-page">
+
+<div class="auth-card">
+  <div class="auth-logo">
+    <div class="logo-icon">GMS</div>
+    <h4>Grievance Portal</h4>
+    <p>Citizen Login &mdash; Government Civic Services</p>
+  </div>
+
+  <div id="alert-box"></div>
+
+  <form id="login-form" autocomplete="off">
+    <div class="form-group">
+      <label class="form-label">Email Address</label>
+      <input type="email" id="email" class="form-control" placeholder="your@email.com" required autofocus />
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input type="password" id="password" class="form-control" placeholder="Enter your password" required />
+    </div>
+
+    <button type="submit" id="submit-btn" class="btn btn-primary btn-lg" style="width:100%;justify-content:center;margin-top:6px">
+      Sign In
+    </button>
+  </form>
+
+  <div class="auth-divider">New to GMS?</div>
+  <a href="/register" class="btn btn-outline" style="width:100%;justify-content:center">Create Free Account</a>
+
+  <div style="margin-top:20px;padding:14px;background:#f8fafc;border-radius:8px;border:1px solid #dde3ed">
+    <p style="font-size:0.76rem;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Admin Access</p>
+    <a href="/admin/login" style="color:var(--navy);font-weight:600">Admin Login Panel</a>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+  if (Auth.isLoggedIn()) {
+    window.location.href = Auth.isAdmin() ? '/admin/dashboard' : '/user/dashboard';
+  }
+
+  document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const alertBox = document.getElementById('alert-box');
+    alertBox.innerHTML = '';
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.innerHTML = `<span class="loading-spinner"></span> Signing In...`;
+
+    const { ok, data } = await API.post('/auth/login', { email, password });
+
+    btn.disabled = false;
+    btn.innerHTML = '👤 Sign In';
+
+    if (ok && data.success) {
+      Auth.save(data.token, data.user);
+      if (data.user.role === 'admin') {
+        window.location.href = '/admin/dashboard';
+      } else {
+        window.location.href = '/user/dashboard';
+      }
+    } else {
+      alertBox.innerHTML = `<div class="alert alert-danger">❌ ${data.message}</div>`;
+    }
+  });
+</script>
+</body>
+</html>

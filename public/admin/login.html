@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Login — GMS Portal</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏛️</text></svg>" />
+  <link href="https://fonts.googleapis.com/css2?family=Mukta:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    .auth-page { background: var(--navy); }
+    .auth-card { border-top: 4px solid var(--navy-mid); background: #fff; }
+    .admin-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(13,27,62,0.07); border: 1px solid rgba(13,27,62,0.15);
+      color: var(--navy); padding: 4px 14px; border-radius: 4px;
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body class="auth-page">
+
+<div class="auth-card">
+  <div class="auth-logo">
+    <div class="logo-icon">GMS</div>
+    <div class="admin-badge">Admin Access</div>
+    <h4>Admin Login Panel</h4>
+    <p>Grievance Management System &mdash; Internal Access</p>
+  </div>
+
+  <div id="alert-box"></div>
+
+  <form id="admin-login-form" autocomplete="off">
+    <div class="form-group">
+      <label class="form-label">Admin Email</label>
+      <input type="email" id="email" class="form-control" placeholder="admin@gms.gov.in" required autofocus />
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input type="password" id="password" class="form-control" placeholder="Enter admin password" required />
+    </div>
+
+    <button class="btn btn-primary" style="width:100%;margin-top:8px;padding:13px" id="login-btn">Admin Sign In</button>
+  </form>
+
+  <div class="auth-divider">Citizen?</div>
+  <a href="/login" class="btn btn-outline" style="width:100%;justify-content:center">Citizen Login Portal</a>
+
+  <div style="margin-top:16px;padding:12px;background:#f8fafc;border-radius:8px;border:1px solid #dde3ed;text-align:center">
+    <p style="font-size:0.72rem;color:#9ca3af">🔒 Restricted Access — Authorized Personnel Only</p>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+  // Redirect if already logged in as admin
+  if (Auth.isLoggedIn() && Auth.isAdmin()) {
+    window.location.href = '/admin/dashboard';
+  }
+
+  document.getElementById('admin-login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email    = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const alertBox = document.getElementById('alert-box');
+    alertBox.innerHTML = '';
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.innerHTML = `<span class="loading-spinner"></span> Signing In...`;
+
+    const { ok, data } = await API.post('/auth/admin/login', { email, password });
+
+    btn.disabled = false;
+    btn.innerHTML = '🔑 Admin Sign In';
+
+    if (ok && data.success) {
+      Auth.save(data.token, data.user);
+      window.location.href = '/admin/dashboard';
+    } else {
+      alertBox.innerHTML = `<div class="alert alert-danger">❌ ${data.message}</div>`;
+    }
+  });
+</script>
+</body>
+</html>

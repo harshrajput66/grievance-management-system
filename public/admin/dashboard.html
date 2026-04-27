@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard — GMS</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏛️</text></svg>" />
+  <link href="https://fonts.googleapis.com/css2?family=Mukta:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    .stat-card.blue   { --accent-gradient: linear-gradient(90deg,#1a6eb5,#2196f3); }
+    .stat-card.orange { --accent-gradient: linear-gradient(90deg,#e8701a,#f5a143); }
+    .stat-card.green  { --accent-gradient: linear-gradient(90deg,#2e7d32,#43a047); }
+    .stat-card.red    { --accent-gradient: linear-gradient(90deg,#c62828,#e53935); }
+    .stat-card.purple { --accent-gradient: linear-gradient(90deg,#6a1b9a,#8e24aa); }
+    .stat-card.teal   { --accent-gradient: linear-gradient(90deg,#00695c,#00897b); }
+    .stat-card.navy   { --accent-gradient: linear-gradient(90deg,var(--navy),var(--navy-mid)); }
+    .welcome-banner {
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-mid) 60%, var(--blue) 100%);
+      border-radius: var(--radius); padding: 28px 32px; margin-bottom: 28px;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+    }
+    .welcome-banner h3 { font-family: 'Playfair Display', serif; color: #fff; font-size: 1.4rem; margin-bottom: 4px; }
+    .welcome-banner p  { color: rgba(255,255,255,0.65); font-size: 0.85rem; }
+    .admin-tag { display: inline-flex; align-items: center; gap: 6px; background: rgba(232,112,26,0.2); border: 1px solid var(--accent); color: var(--accent); padding: 4px 12px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+
+<div class="gms-shell">
+  <!-- Admin Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">GMS</div>
+      <h6>Admin Control</h6>
+      <h5>GMS</h5>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">Management</div>
+      <a href="/admin/dashboard"><span class="nav-icon">-</span> Dashboard</a>
+      <a href="/admin/complaints" class="active"><span class="nav-icon">-</span> All Complaints</a>
+      <div class="nav-section-title">Portal</div>
+      <a href="/"><span class="nav-icon">-</span> Home Portal</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="avatar" id="sidebar-avatar" style="background:var(--accent)">A</div>
+        <div>
+          <div class="user-name" id="sidebar-user-name">Loading...</div>
+          <div class="user-role" id="sidebar-user-role">Administrator</div>
+        </div>
+      </div>
+      <button class="btn-logout">Logout</button>
+    </div>
+  </aside>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+        <div>
+          <div class="topbar-title">Admin Dashboard</div>
+          <div class="topbar-subtitle">Grievance Management Overview</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span class="live-dot" id="socket-status">Connecting...</span>
+        <a href="/admin/complaints" class="btn btn-accent btn-sm">View All</a>
+      </div>
+    </header>
+
+    <main class="page-content">
+      <!-- Welcome Banner -->
+      <div class="welcome-banner">
+        <div>
+          <div class="admin-tag">Administrator</div>
+        <h3>Welcome, <span id="admin-name">Admin</span></h3>
+        <p>Here is a real-time overview of all civic grievances in the system.</p>
+        </div>
+        <a href="/admin/complaints" class="btn btn-primary">Manage Complaints</a>
+      </div>
+
+      <!-- Stat Cards -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px;margin-bottom:28px">
+        <div class="stat-card blue">
+          <div class="stat-icon" style="background:rgba(26,110,181,0.1)">T</div>
+          <div class="stat-value" id="stat-total">&#8212;</div>
+          <div class="stat-label">Total</div>
+        </div>
+        <div class="stat-card orange">
+          <div class="stat-icon" style="background:rgba(232,112,26,0.1)">S</div>
+          <div class="stat-value" id="stat-submitted">&#8212;</div>
+          <div class="stat-label">Submitted</div>
+        </div>
+        <div class="stat-card" style="--accent-gradient:linear-gradient(90deg,#f57f17,#ffa000)">
+          <div class="stat-icon" style="background:rgba(245,127,23,0.1)">P</div>
+          <div class="stat-value" id="stat-pending">&#8212;</div>
+          <div class="stat-label">Pending</div>
+        </div>
+        <div class="stat-card" style="--accent-gradient:linear-gradient(90deg,#0277bd,#0288d1)">
+          <div class="stat-icon" style="background:rgba(2,119,189,0.1)">IP</div>
+          <div class="stat-value" id="stat-inprogress">&#8212;</div>
+          <div class="stat-label">In Progress</div>
+        </div>
+        <div class="stat-card green">
+          <div class="stat-icon" style="background:rgba(46,125,50,0.1)">✅</div>
+          <div class="stat-value" id="stat-resolved">—</div>
+          <div class="stat-label">Resolved</div>
+        </div>
+        <div class="stat-card red">
+          <div class="stat-icon" style="background:rgba(198,40,40,0.1)">❌</div>
+          <div class="stat-value" id="stat-rejected">—</div>
+          <div class="stat-label">Rejected</div>
+        </div>
+        <div class="stat-card purple">
+          <div class="stat-icon" style="background:rgba(106,27,154,0.1)">🔄</div>
+          <div class="stat-value" id="stat-reopened">—</div>
+          <div class="stat-label">Reopened</div>
+        </div>
+        <div class="stat-card navy">
+          <div class="stat-icon" style="background:rgba(11,37,69,0.1)">📅</div>
+          <div class="stat-value" id="stat-today">—</div>
+          <div class="stat-label">Today</div>
+        </div>
+      </div>
+
+      <!-- Recent Complaints -->
+      <div class="card">
+        <div class="card-header">
+          <h5>🕐 Recent Complaints</h5>
+          <a href="/admin/complaints" class="btn btn-outline btn-sm">View All →</a>
+        </div>
+        <div class="card-body" style="padding:0">
+          <div id="recent-container">
+            <div style="text-align:center;padding:40px">
+              <span class="loading-spinner dark"></span>
+              <p style="margin-top:12px;color:var(--muted)">Loading complaints...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+<script>
+  if (!Auth.requireAuth('admin')) throw new Error('Admin required');
+  setupSidebar();
+
+  const user = Auth.getUser();
+  document.getElementById('welcome-name').textContent = `Welcome, ${user.name}! 👋`;
+
+  async function loadStats() {
+    const { ok, data } = await API.get('/admin/stats');
+    if (ok && data.success) {
+      const s = data.stats;
+      document.getElementById('stat-total').textContent      = s.total       || 0;
+      document.getElementById('stat-submitted').textContent  = s.submitted   || 0;
+      document.getElementById('stat-pending').textContent    = s.pending     || 0;
+      document.getElementById('stat-inprogress').textContent = s.in_progress || 0;
+      document.getElementById('stat-resolved').textContent   = s.resolved    || 0;
+      document.getElementById('stat-rejected').textContent   = s.rejected    || 0;
+      document.getElementById('stat-reopened').textContent   = s.reopened    || 0;
+      document.getElementById('stat-today').textContent      = s.today       || 0;
+    }
+  }
+
+  async function loadRecent() {
+    const { ok, data } = await API.get('/admin/complaints?limit=8&page=1');
+    const container = document.getElementById('recent-container');
+
+    if (!ok || !data.success || data.complaints.length === 0) {
+      container.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><h5>No complaints yet</h5><p>New complaints will appear here in real time.</p></div>`;
+      return;
+    }
+
+    let html = `<div style="overflow-x:auto"><table class="gms-table"><thead><tr>
+      <th>Complaint ID</th><th>Title</th><th>Category</th><th>Priority</th><th>Status</th><th>Citizen</th><th>Date</th>
+    </tr></thead><tbody>`;
+
+    data.complaints.forEach(c => {
+      html += `<tr onclick="window.location.href='/admin/complaint/${c.complaint_id}'" style="cursor:pointer">
+        <td><span class="complaint-id">${c.complaint_id}</span></td>
+        <td style="max-width:180px"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${c.title}">${c.title}</div></td>
+        <td>${Format.categoryIcon(c.category)} <span style="font-size:0.8rem">${c.category}</span></td>
+        <td>${Format.priorityBadge(c.priority)}</td>
+        <td>${Format.statusBadge(c.status)}</td>
+        <td style="font-size:0.82rem">${c.user_name}</td>
+        <td style="color:var(--muted);font-size:0.78rem">${Format.date(c.created_at)}</td>
+      </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+  }
+
+  // Socket.IO
+  const socket = io({ auth: { token: Auth.getToken() } });
+  const statusEl = document.getElementById('socket-status');
+
+  socket.on('connect',    () => { statusEl.textContent = 'Live'; });
+  socket.on('disconnect', () => { statusEl.textContent = 'Disconnected'; });
+
+  socket.on('complaint:new', (payload) => {
+    Toast.info(`New complaint received: ${payload.complaintId}`);
+    loadStats();
+    loadRecent();
+  });
+
+  socket.on('complaint:reopened', (payload) => {
+    Toast.warning(`Complaint ${payload.complaintId} was reopened by citizen.`);
+    loadStats();
+    loadRecent();
+  });
+
+  socket.on('complaint:updated', () => {
+    loadStats();
+    loadRecent();
+  });
+
+  loadStats();
+  loadRecent();
+</script>
+</body>
+</html>

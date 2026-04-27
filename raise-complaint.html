@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Raise Complaint — GMS</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏛️</text></svg>" />
+  <link href="https://fonts.googleapis.com/css2?family=Mukta:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    .priority-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+    .priority-btn {
+      border: 2px solid var(--border); border-radius: 8px; padding: 12px 8px;
+      text-align: center; cursor: pointer; transition: var(--transition);
+      background: #fff; font-family: 'Mukta', sans-serif;
+    }
+    .priority-btn.selected.Low    { border-color: #558b2f; background: #f1f8e9; }
+    .priority-btn.selected.Medium { border-color: #e65100; background: #fff3e0; }
+    .priority-btn.selected.High   { border-color: #bf360c; background: #fbe9e7; }
+    .priority-btn.selected.Urgent { border-color: #b71c1c; background: #ffebee; }
+    .priority-btn:hover { border-color: var(--blue); }
+    .priority-btn .p-icon { font-size: 1.5rem; display: block; margin-bottom: 4px; }
+    .priority-btn .p-label { font-size: 0.78rem; font-weight: 700; color: var(--text-sm); }
+    .category-desc { font-size: 0.8rem; color: var(--muted); margin-top: 6px; padding: 8px 12px; background: #f8fafc; border-radius: 6px; border-left: 3px solid var(--blue); display: none; }
+    .success-overlay {
+      position: fixed; inset: 0; background: rgba(11,37,69,0.85);
+      display: none; align-items: center; justify-content: center; z-index: 999;
+    }
+    .success-overlay.show { display: flex; }
+    .success-card {
+      background: #fff; border-radius: 16px; padding: 48px 40px;
+      text-align: center; max-width: 420px; width: 90%;
+      animation: popIn 0.35s cubic-bezier(.175,.885,.32,1.275);
+    }
+    @keyframes popIn {
+      from { transform: scale(0.8); opacity: 0; }
+      to   { transform: scale(1); opacity: 1; }
+    }
+    .success-icon { font-size: 3.5rem; margin-bottom: 16px; }
+    .cid-display {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.2rem; font-weight: 700;
+      background: #f0f7ff; border: 2px solid var(--blue);
+      padding: 12px 24px; border-radius: 10px; color: var(--navy);
+      margin: 16px 0; display: inline-block; letter-spacing: 2px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="gms-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">🏛️</div>
+      <h6>Citizen Portal</h6>
+      <h5>GMS</h5>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">Main</div>
+      <a href="/user/dashboard"><span class="nav-icon">🏠</span> Dashboard</a>
+      <a href="/user/raise-complaint"><span class="nav-icon">➕</span> Raise Complaint</a>
+      <a href="/user/my-complaints"><span class="nav-icon">📋</span> My Complaints</a>
+      <div class="nav-section-title">Account</div>
+      <a href="/"><span class="nav-icon">🏛️</span> Home Portal</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="avatar" id="sidebar-avatar">U</div>
+        <div>
+          <div class="user-name" id="sidebar-user-name">Loading...</div>
+          <div class="user-role" id="sidebar-user-role">Citizen</div>
+        </div>
+      </div>
+      <button class="btn-logout">🚪 Logout</button>
+    </div>
+  </aside>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+        <div>
+          <div class="topbar-title">Raise a Complaint</div>
+          <div class="topbar-subtitle">Fill the form to submit your civic grievance</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <a href="/user/my-complaints" class="btn btn-outline btn-sm">📋 My Complaints</a>
+      </div>
+    </header>
+
+    <main class="page-content">
+      <div style="max-width:720px;margin:0 auto">
+        <div id="alert-box"></div>
+
+        <form id="complaint-form" enctype="multipart/form-data">
+          <!-- Title -->
+          <div class="card" style="margin-bottom:20px">
+            <div class="card-header"><h5>📝 Complaint Details</h5></div>
+            <div class="card-body">
+              <div class="form-group">
+                <label class="form-label">Complaint Title *</label>
+                <input type="text" id="title" class="form-control" placeholder="e.g., Overflowing garbage bin near Sector 12 market" required maxlength="255" />
+                <div class="form-text">Be specific and descriptive — this is the headline of your complaint.</div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Detailed Description *</label>
+                <textarea id="description" class="form-control" rows="4" placeholder="Describe the issue in detail — when did it start, how severe is it, what is the impact..." required minlength="20" maxlength="2000"></textarea>
+                <div class="form-text"><span id="desc-counter">0</span>/2000 characters</div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Location / Address</label>
+                <input type="text" id="location" class="form-control" placeholder="e.g., Near Gate 3, Rohini Sector 15, Delhi 110085" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Category -->
+          <div class="card" style="margin-bottom:20px">
+            <div class="card-header"><h5>🏷️ Category & Priority</h5></div>
+            <div class="card-body">
+              <div class="form-group">
+                <label class="form-label">Complaint Category *</label>
+                <select id="category" class="form-select" required>
+                  <option value="">— Select a category —</option>
+                  <option value="Garbage and Sanitation">🗑️ Garbage and Sanitation</option>
+                  <option value="Illegal Construction">🏗️ Illegal Construction</option>
+                  <option value="Encroachments">🚧 Encroachments</option>
+                  <option value="Streetlight Issues">💡 Streetlight Issues</option>
+                  <option value="Potholes and Road Maintenance">🛣️ Potholes and Road Maintenance</option>
+                  <option value="Drainage and Waterlogging">🌊 Drainage and Waterlogging</option>
+                  <option value="Horticulture">🌳 Horticulture</option>
+                  <option value="Stray Animals">🐄 Stray Animals</option>
+                  <option value="C&D Waste">🧱 C&D Waste</option>
+                  <option value="Public Health">🏥 Public Health</option>
+                </select>
+                <div class="category-desc" id="category-desc"></div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Priority Level *</label>
+                <div class="priority-grid">
+                  <button type="button" class="priority-btn" data-priority="Low">
+                    <span class="p-icon">🟢</span>
+                    <span class="p-label">Low</span>
+                  </button>
+                  <button type="button" class="priority-btn" data-priority="Medium">
+                    <span class="p-icon">🟡</span>
+                    <span class="p-label">Medium</span>
+                  </button>
+                  <button type="button" class="priority-btn" data-priority="High">
+                    <span class="p-icon">🟠</span>
+                    <span class="p-label">High</span>
+                  </button>
+                  <button type="button" class="priority-btn" data-priority="Urgent">
+                    <span class="p-icon">🔴</span>
+                    <span class="p-label">Urgent</span>
+                  </button>
+                </div>
+                <input type="hidden" id="priority" value="Medium" />
+                <div class="form-text" style="margin-top:10px">
+                  <strong>Low</strong> — Minor inconvenience &nbsp;|&nbsp;
+                  <strong>Medium</strong> — Needs attention &nbsp;|&nbsp;
+                  <strong>High</strong> — Significant impact &nbsp;|&nbsp;
+                  <strong>Urgent</strong> — Emergency / health risk
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- File Upload -->
+          <div class="card" style="margin-bottom:20px">
+            <div class="card-header"><h5>📎 Upload Proof (Optional)</h5></div>
+            <div class="card-body">
+              <div class="form-group">
+                <div class="file-upload-area" id="upload-area">
+                  <div class="upload-icon">📷</div>
+                  <p>Drag & drop your image or PDF here, or <strong style="color:var(--blue)">click to browse</strong></p>
+                  <p style="font-size:0.72rem;margin-top:6px">Accepted: JPEG, PNG, GIF, PDF · Max size: 5MB</p>
+                  <input type="file" id="proof-file" accept="image/*,.pdf" />
+                </div>
+                <div id="file-preview" style="margin-top:12px;display:none">
+                  <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:#f0f7ff;border:1px solid var(--blue);border-radius:8px">
+                    <span id="file-icon" style="font-size:1.4rem">📄</span>
+                    <div>
+                      <div style="font-weight:600;font-size:0.85rem" id="file-name"></div>
+                      <div style="font-size:0.72rem;color:var(--muted)" id="file-size"></div>
+                    </div>
+                    <button type="button" id="remove-file" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--danger);font-size:1rem">✕</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Submit -->
+          <div style="display:flex;gap:12px;justify-content:flex-end">
+            <a href="/user/dashboard" class="btn btn-outline">Cancel</a>
+            <button type="submit" id="submit-btn" class="btn btn-accent btn-lg">
+              🚀 Submit Complaint
+            </button>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Success Overlay -->
+<div class="success-overlay" id="success-overlay">
+  <div class="success-card">
+    <div class="success-icon">🎉</div>
+    <h3 style="font-family:'Playfair Display',serif;color:var(--navy);margin-bottom:8px">Complaint Submitted!</h3>
+    <p style="color:var(--muted);font-size:0.88rem;margin-bottom:16px">Your complaint has been registered successfully.</p>
+    <div class="cid-display" id="success-cid">GMS-20240101-0000</div>
+    <p style="font-size:0.78rem;color:var(--muted);margin-bottom:24px">Save this ID to track your complaint status</p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <a href="/user/my-complaints" class="btn btn-primary">📋 View My Complaints</a>
+      <button onclick="document.getElementById('success-overlay').classList.remove('show');document.getElementById('complaint-form').reset();setDefaultPriority()" class="btn btn-outline">➕ Raise Another</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+  if (!Auth.requireAuth('user')) throw new Error();
+  setupSidebar();
+
+  // Default priority
+  function setDefaultPriority() {
+    document.querySelectorAll('.priority-btn').forEach(b => b.classList.remove('selected', b.dataset.priority));
+    const medBtn = document.querySelector('[data-priority="Medium"]');
+    if (medBtn) { medBtn.classList.add('selected', 'Medium'); }
+    document.getElementById('priority').value = 'Medium';
+  }
+  setDefaultPriority();
+
+  // Priority selector
+  document.querySelectorAll('.priority-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.priority-btn').forEach(b => {
+        b.classList.remove('selected', 'Low', 'Medium', 'High', 'Urgent');
+      });
+      btn.classList.add('selected', btn.dataset.priority);
+      document.getElementById('priority').value = btn.dataset.priority;
+    });
+  });
+
+  // Category description
+  document.getElementById('category').addEventListener('change', function() {
+    const desc = CATEGORY_DESCRIPTIONS[this.value];
+    const el = document.getElementById('category-desc');
+    if (desc) { el.textContent = `ℹ️ ${desc}`; el.style.display = 'block'; }
+    else el.style.display = 'none';
+  });
+
+  // Description counter
+  document.getElementById('description').addEventListener('input', function() {
+    document.getElementById('desc-counter').textContent = this.value.length;
+  });
+
+  // File upload
+  const uploadArea = document.getElementById('upload-area');
+  const fileInput  = document.getElementById('proof-file');
+  const preview    = document.getElementById('file-preview');
+
+  uploadArea.addEventListener('click', () => fileInput.click());
+  uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('drag-over'); });
+  uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('drag-over'));
+  uploadArea.addEventListener('drop', (e) => {
+    e.preventDefault(); uploadArea.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) { fileInput.files = e.dataTransfer.files; showPreview(e.dataTransfer.files[0]); }
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) showPreview(fileInput.files[0]);
+  });
+
+  function showPreview(file) {
+    document.getElementById('file-name').textContent = file.name;
+    document.getElementById('file-size').textContent = (file.size / 1024).toFixed(1) + ' KB';
+    document.getElementById('file-icon').textContent = file.type.includes('pdf') ? '📄' : '🖼️';
+    preview.style.display = 'block';
+  }
+
+  document.getElementById('remove-file').addEventListener('click', () => {
+    fileInput.value = '';
+    preview.style.display = 'none';
+  });
+
+  // Form submission
+  document.getElementById('complaint-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const alertBox = document.getElementById('alert-box');
+    alertBox.innerHTML = '';
+
+    const title = document.getElementById('title').value.trim();
+    const description = document.getElementById('description').value.trim();
+    const category = document.getElementById('category').value;
+    const priority = document.getElementById('priority').value;
+    const location = document.getElementById('location').value.trim();
+
+    if (!category) {
+      alertBox.innerHTML = `<div class="alert alert-danger">❌ Please select a complaint category.</div>`;
+      return;
+    }
+    if (description.length < 20) {
+      alertBox.innerHTML = `<div class="alert alert-danger">❌ Description must be at least 20 characters.</div>`;
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('title', title);
+    formData.append('description', description);
+    formData.append('category', category);
+    formData.append('priority', priority);
+    formData.append('location', location);
+    if (fileInput.files[0]) formData.append('proof', fileInput.files[0]);
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.innerHTML = `<span class="loading-spinner"></span> Submitting...`;
+
+    const { ok, data } = await API.upload('/complaints', formData);
+
+    btn.disabled = false;
+    btn.innerHTML = '🚀 Submit Complaint';
+
+    if (ok && data.success) {
+      document.getElementById('success-cid').textContent = data.complaintId;
+      document.getElementById('success-overlay').classList.add('show');
+    } else {
+      alertBox.innerHTML = `<div class="alert alert-danger">❌ ${data.message}</div>`;
+    }
+  });
+</script>
+</body>
+</html>

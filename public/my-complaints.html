@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Complaints — GMS</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏛️</text></svg>" />
+  <link href="https://fonts.googleapis.com/css2?family=Mukta:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+<div class="gms-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">🏛️</div>
+      <h6>Citizen Portal</h6>
+      <h5>GMS</h5>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">Main</div>
+      <a href="/user/dashboard"><span class="nav-icon">🏠</span> Dashboard</a>
+      <a href="/user/raise-complaint"><span class="nav-icon">➕</span> Raise Complaint</a>
+      <a href="/user/my-complaints"><span class="nav-icon">📋</span> My Complaints</a>
+      <div class="nav-section-title">Account</div>
+      <a href="/"><span class="nav-icon">🏛️</span> Home Portal</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="avatar" id="sidebar-avatar">U</div>
+        <div>
+          <div class="user-name" id="sidebar-user-name">Loading...</div>
+          <div class="user-role" id="sidebar-user-role">Citizen</div>
+        </div>
+      </div>
+      <button class="btn-logout">🚪 Logout</button>
+    </div>
+  </aside>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+        <div>
+          <div class="topbar-title">My Complaints</div>
+          <div class="topbar-subtitle">Track all your submitted grievances</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span class="live-dot" id="socket-status">Live</span>
+        <a href="/user/raise-complaint" class="btn btn-accent btn-sm">➕ New</a>
+      </div>
+    </header>
+
+    <main class="page-content">
+      <!-- Filter Bar -->
+      <div class="search-filter-bar">
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="search-input" placeholder="Search by ID or title..." />
+        </div>
+        <select class="filter-select" id="status-filter">
+          <option value="">All Statuses</option>
+          <option>Submitted</option><option>Pending</option>
+          <option>In Progress</option><option>Resolved</option>
+          <option>Rejected</option><option>Reopened</option>
+        </select>
+        <select class="filter-select" id="category-filter">
+          <option value="">All Categories</option>
+          <option>Garbage and Sanitation</option><option>Illegal Construction</option>
+          <option>Encroachments</option><option>Streetlight Issues</option>
+          <option>Potholes and Road Maintenance</option><option>Drainage and Waterlogging</option>
+          <option>Horticulture</option><option>Stray Animals</option>
+          <option>C&D Waste</option><option>Public Health</option>
+        </select>
+        <select class="filter-select" id="priority-filter">
+          <option value="">All Priorities</option>
+          <option>Low</option><option>Medium</option><option>High</option><option>Urgent</option>
+        </select>
+        <button class="btn btn-outline btn-sm" id="reset-filters">↺ Reset</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h5>📋 Complaints List</h5>
+          <span id="complaints-count" style="font-size:0.8rem;color:var(--muted)"></span>
+        </div>
+        <div style="padding:0">
+          <div id="complaints-container">
+            <div style="text-align:center;padding:40px">
+              <span class="loading-spinner dark"></span>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer" id="pagination-container"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+<script>
+  if (!Auth.requireAuth('user')) throw new Error();
+  setupSidebar();
+
+  let currentPage = 1;
+  let searchTimer;
+
+  async function loadComplaints(page = 1) {
+    currentPage = page;
+    const search = document.getElementById('search-input').value.trim();
+    const status = document.getElementById('status-filter').value;
+    const category = document.getElementById('category-filter').value;
+    const priority = document.getElementById('priority-filter').value;
+
+    const params = new URLSearchParams({ page, limit: 10 });
+    if (search) params.append('search', search);
+    if (status) params.append('status', status);
+    if (category) params.append('category', category);
+    if (priority) params.append('priority', priority);
+
+    const { ok, data } = await API.get(`/complaints?${params}`);
+    const container = document.getElementById('complaints-container');
+
+    if (!ok || !data.success) {
+      container.innerHTML = `<div class="alert alert-danger" style="margin:20px">❌ Failed to load complaints.</div>`;
+      return;
+    }
+
+    document.getElementById('complaints-count').textContent = `${data.pagination.total} complaint(s)`;
+
+    if (data.complaints.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">📭</div>
+          <h5>No complaints found</h5>
+          <p>Try adjusting your filters or raise a new complaint</p>
+          <a href="/user/raise-complaint" class="btn btn-primary" style="margin-top:12px">➕ Raise Complaint</a>
+        </div>`;
+      document.getElementById('pagination-container').innerHTML = '';
+      return;
+    }
+
+    let html = `<div style="overflow-x:auto">
+      <table class="gms-table">
+        <thead><tr>
+          <th>Complaint ID</th><th>Title</th><th>Category</th>
+          <th>Priority</th><th>Status</th><th>Admin Remark</th><th>Date</th>
+        </tr></thead><tbody>`;
+
+    data.complaints.forEach(c => {
+      html += `<tr onclick="window.location.href='/user/complaint/${c.complaint_id}'" style="cursor:pointer">
+        <td><span class="complaint-id">${c.complaint_id}</span></td>
+        <td style="max-width:160px">
+          <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600" title="${c.title}">${c.title}</div>
+        </td>
+        <td style="white-space:nowrap">${Format.categoryIcon(c.category)} <span style="font-size:0.82rem">${c.category}</span></td>
+        <td>${Format.priorityBadge(c.priority)}</td>
+        <td>${Format.statusBadge(c.status)}</td>
+        <td style="max-width:180px">
+          ${c.admin_remark ? `<span style="font-size:0.78rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block" title="${c.admin_remark}">${c.admin_remark}</span>` : '<span style="color:#d1d5db;font-size:0.78rem">—</span>'}
+        </td>
+        <td style="color:var(--muted);font-size:0.78rem;white-space:nowrap">${Format.date(c.created_at)}</td>
+      </tr>`;
+    });
+
+    html += `</tbody></table></div>`;
+    container.innerHTML = html;
+
+    renderPagination('pagination-container', data.pagination, (p) => loadComplaints(p));
+  }
+
+  // Search debounce
+  document.getElementById('search-input').addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => loadComplaints(1), 400);
+  });
+
+  ['status-filter','category-filter','priority-filter'].forEach(id => {
+    document.getElementById(id).addEventListener('change', () => loadComplaints(1));
+  });
+
+  document.getElementById('reset-filters').addEventListener('click', () => {
+    document.getElementById('search-input').value = '';
+    document.getElementById('status-filter').value = '';
+    document.getElementById('category-filter').value = '';
+    document.getElementById('priority-filter').value = '';
+    loadComplaints(1);
+  });
+
+  // Socket for live updates
+  const socket = io({ auth: { token: Auth.getToken() } });
+  socket.on('complaint:notification', () => loadComplaints(currentPage));
+  socket.on('complaint:new', () => loadComplaints(1));
+
+  loadComplaints(1);
+</script>
+</body>
+</html>

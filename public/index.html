@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GMS — Grievance Management System</title>
+  <meta name="description" content="Official Civic Grievance Management Portal — Register complaints, track status in real time, and connect with local administration." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='14' fill='%230b2545'/><text y='.85em' font-size='58' font-family='serif' font-weight='900' fill='white' x='50%' text-anchor='middle'>G</text></svg>" />
+  <link href="https://fonts.googleapis.com/css2?family=Mukta:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --navy: #0b2545; --navy-mid: #134074; --blue: #1a6eb5;
+      --accent: #e8701a; --bg: #f4f6f9; --card: #fff;
+      --border: #dde3ed; --text: #1a2332; --muted: #6b7280;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Mukta', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+    a { text-decoration: none; color: inherit; }
+
+    /* NAV */
+    nav {
+      background: var(--navy); padding: 0 5%; display: flex; align-items: center;
+      justify-content: space-between; height: 64px;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.22);
+    }
+    .nav-brand { display: flex; align-items: center; gap: 12px; }
+    .brand-icon {
+      width: 38px; height: 38px; background: var(--accent); border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Playfair Display', serif; font-weight: 700; font-size: 1.1rem;
+      color: #fff; box-shadow: 0 4px 12px rgba(232,112,26,0.4);
+    }
+    .brand-text h4 { font-family: 'Playfair Display', serif; font-size: 1.05rem; color: #fff; font-weight: 600; }
+    .nav-links { display: flex; gap: 8px; align-items: center; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 9px 20px; border-radius: 8px; font-size: 0.88rem; font-weight: 600;
+      cursor: pointer; border: none; transition: all 0.2s;
+      font-family: 'Mukta', sans-serif; text-decoration: none;
+    }
+    .btn-outline-white { background: transparent; border: 1.5px solid rgba(255,255,255,0.3); color: #fff; }
+    .btn-outline-white:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.5); }
+    .btn-accent { background: var(--accent); color: #fff; }
+    .btn-accent:hover { background: #d1600f; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(232,112,26,0.4); }
+    .btn-primary { background: var(--blue); color: #fff; }
+    .btn-primary:hover { background: var(--navy-mid); transform: translateY(-1px); }
+    .btn-lg { padding: 14px 32px; font-size: 1rem; }
+    .btn-white { background: #fff; color: var(--navy); font-weight: 700; }
+    .btn-white:hover { background: #f0f4f8; transform: translateY(-1px); }
+
+    /* HERO */
+    .hero {
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-mid) 55%, var(--blue) 100%);
+      padding: 100px 5% 80px; text-align: center; position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: ''; position: absolute; inset: 0; pointer-events: none;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+      color: rgba(255,255,255,0.85); padding: 6px 18px; border-radius: 20px;
+      font-size: 0.78rem; font-weight: 600; letter-spacing: 1px;
+      text-transform: uppercase; margin-bottom: 24px; position: relative; z-index: 1;
+    }
+    .hero h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2.2rem, 5vw, 3.6rem); color: #fff;
+      line-height: 1.12; margin-bottom: 20px; position: relative; z-index: 1;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero p {
+      color: rgba(255,255,255,0.72); font-size: 1.05rem;
+      max-width: 560px; margin: 0 auto 36px; line-height: 1.75; position: relative; z-index: 1;
+    }
+    .hero-btns { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; position: relative; z-index: 1; }
+
+    /* STATS STRIP */
+    .stats-strip {
+      background: var(--accent); padding: 0;
+      display: flex; justify-content: center; flex-wrap: wrap;
+    }
+    .stat-item { text-align: center; padding: 22px 44px; border-right: 1px solid rgba(255,255,255,0.15); }
+    .stat-item:last-child { border-right: none; }
+    .stat-num { font-family: 'Playfair Display', serif; font-size: 1.9rem; font-weight: 700; color: #fff; line-height: 1; }
+    .stat-lbl { font-size: 0.72rem; color: rgba(255,255,255,0.75); text-transform: uppercase; letter-spacing: 1.5px; margin-top: 4px; }
+
+    /* SECTIONS */
+    .section { padding: 80px 5%; }
+    .section-dark { background: var(--navy); }
+    .section-alt { background: #eef1f6; }
+    .section-header { text-align: center; margin-bottom: 52px; }
+    .section-label {
+      display: inline-block; font-size: 0.72rem; font-weight: 700;
+      letter-spacing: 2.5px; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 12px;
+    }
+    .section-label-light { color: rgba(255,255,255,0.5); }
+    .section-title {
+      font-family: 'Playfair Display', serif; font-size: 2.1rem;
+      color: var(--navy); margin-bottom: 12px; font-weight: 700;
+    }
+    .section-title-light { color: #fff; }
+    .section-sub { color: var(--muted); font-size: 0.95rem; max-width: 480px; margin: 0 auto; }
+    .section-sub-light { color: rgba(255,255,255,0.55); }
+
+    /* FEATURE CARDS */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px; max-width: 1100px; margin: 0 auto;
+    }
+    .feature-card {
+      background: var(--card); border-radius: 12px;
+      border: 1px solid var(--border); padding: 32px;
+      transition: all 0.22s; box-shadow: 0 2px 10px rgba(11,37,69,0.05);
+    }
+    .feature-card:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(11,37,69,0.12); }
+    .feature-icon {
+      width: 44px; height: 44px; background: linear-gradient(135deg, var(--navy), var(--blue));
+      border-radius: 10px; display: flex; align-items: center; justify-content: center;
+      font-size: 0.78rem; font-weight: 800; color: #fff; letter-spacing: 0.5px;
+      margin-bottom: 18px;
+    }
+    .feature-card h4 { font-size: 1rem; font-weight: 700; color: var(--navy); margin-bottom: 8px; }
+    .feature-card p { font-size: 0.875rem; color: var(--muted); line-height: 1.7; }
+
+    /* CATEGORIES */
+    .categories-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1px; background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px; overflow: hidden; max-width: 1100px; margin: 0 auto;
+    }
+    .cat-item { background: rgba(255,255,255,0.04); padding: 22px 20px; transition: background 0.2s; }
+    .cat-item:hover { background: rgba(255,255,255,0.1); }
+    .cat-name { color: #fff; font-size: 0.9rem; font-weight: 600; margin-bottom: 4px; }
+    .cat-desc { color: rgba(255,255,255,0.45); font-size: 0.75rem; line-height: 1.5; }
+
+    /* HOW IT WORKS */
+    .how-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 36px; max-width: 1000px; margin: 0 auto;
+    }
+    .how-step { text-align: center; }
+    .step-num {
+      width: 52px; height: 52px; background: var(--navy); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Playfair Display', serif; font-weight: 700; font-size: 1.1rem;
+      color: #fff; margin: 0 auto 18px;
+      box-shadow: 0 4px 16px rgba(11,37,69,0.3);
+    }
+    .how-step h5 { font-size: 0.95rem; font-weight: 700; color: var(--navy); margin-bottom: 8px; }
+    .how-step p { font-size: 0.85rem; color: var(--muted); line-height: 1.65; }
+
+    /* CTA */
+    .cta-section {
+      background: linear-gradient(135deg, var(--accent) 0%, #d1600f 100%);
+      padding: 80px 5%; text-align: center;
+    }
+    .cta-section h2 {
+      font-family: 'Playfair Display', serif; font-size: 2.1rem;
+      color: #fff; margin-bottom: 14px; font-weight: 700;
+    }
+    .cta-section p { color: rgba(255,255,255,0.8); font-size: 0.95rem; margin-bottom: 32px; }
+    .cta-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+    /* FOOTER */
+    footer {
+      background: var(--navy); padding: 32px 5%;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 16px;
+    }
+    footer p { color: rgba(255,255,255,0.38); font-size: 0.8rem; }
+    .footer-links { display: flex; gap: 28px; }
+    .footer-links a {
+      color: rgba(255,255,255,0.45); font-size: 0.8rem;
+      cursor: pointer; transition: color 0.18s;
+    }
+    .footer-links a:hover { color: rgba(255,255,255,0.85); }
+
+    @media (max-width: 600px) {
+      .hero { padding: 72px 6% 60px; }
+      .stats-strip { flex-direction: column; }
+      .stat-item { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.15); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAVIGATION -->
+<nav>
+  <div class="nav-brand">
+    <div class="brand-icon">G</div>
+    <div class="brand-text">
+      <h4>GMS Portal</h4>
+    </div>
+  </div>
+  <div class="nav-links">
+    <a onclick="nav('login')" class="btn btn-outline-white" style="cursor:pointer">Sign In</a>
+    <a onclick="nav('register')" class="btn btn-accent" style="cursor:pointer">Register</a>
+    <a onclick="nav('admin/login')" class="btn btn-outline-white" style="font-size:0.78rem;cursor:pointer">Admin</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">Official Civic Services Portal</div>
+  <h1>Your Grievance,<br><span>Our Priority.</span></h1>
+  <p>Register civic complaints, upload evidence, track real-time resolution status, and communicate directly with local administration — transparently and efficiently.</p>
+  <div class="hero-btns">
+    <a onclick="nav('register')" class="btn btn-accent btn-lg" style="cursor:pointer">Register Now</a>
+    <a onclick="nav('login')" class="btn btn-outline-white btn-lg" style="cursor:pointer">Sign In to Portal</a>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats-strip">
+  <div class="stat-item"><div class="stat-num">10</div><div class="stat-lbl">Complaint Categories</div></div>
+  <div class="stat-item"><div class="stat-num">6</div><div class="stat-lbl">Resolution Stages</div></div>
+  <div class="stat-item"><div class="stat-num">Live</div><div class="stat-lbl">Real-Time Tracking</div></div>
+  <div class="stat-item"><div class="stat-num">100%</div><div class="stat-lbl">Secure &amp; Private</div></div>
+</div>
+
+<!-- FEATURES -->
+<section class="section" id="features">
+  <div class="section-header">
+    <span class="section-label">Platform Features</span>
+    <h2 class="section-title">Everything You Need</h2>
+    <p class="section-sub">A complete platform to raise, track, and resolve civic complaints — built for citizens and administrators alike.</p>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">01</div>
+      <h4>Easy Complaint Submission</h4>
+      <p>Submit complaints with title, description, category, and priority. Attach image or PDF proof. A unique Complaint ID is auto-generated on submission.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">02</div>
+      <h4>Real-Time Status Updates</h4>
+      <p>Live notifications via Socket.IO — the moment your complaint status changes, you are notified instantly without refreshing the page.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">03</div>
+      <h4>Complete Complaint Timeline</h4>
+      <p>Every action — submission, admin review, status updates, and remarks — is logged in a chronological timeline visible to the citizen.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">04</div>
+      <h4>Admin Control Dashboard</h4>
+      <p>Administrators can search, filter, review uploaded proof, add remarks, update status, and resolve or reject cases through a structured interface.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">05</div>
+      <h4>Secure &amp; Authenticated</h4>
+      <p>JWT-based authentication and bcrypt password hashing. Role-based access separates citizen and administrator permissions completely.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">06</div>
+      <h4>Reopen &amp; Appeal</h4>
+      <p>If unsatisfied with a resolution, citizens may reopen a complaint with a stated reason, triggering a fresh administrative review cycle.</p>
+    </div>
+  </div>
+</section>
+
+<!-- CATEGORIES -->
+<section class="section section-dark" id="categories">
+  <div class="section-header">
+    <span class="section-label section-label-light">Coverage</span>
+    <h2 class="section-title section-title-light">Complaint Categories</h2>
+    <p class="section-sub section-sub-light">We handle all major civic issues across the following categories.</p>
+  </div>
+  <div class="categories-grid">
+    <div class="cat-item"><div class="cat-name">Garbage &amp; Sanitation</div><div class="cat-desc">Dhalaos, littering, collection issues</div></div>
+    <div class="cat-item"><div class="cat-name">Illegal Construction</div><div class="cat-desc">Unauthorized buildings &amp; floors</div></div>
+    <div class="cat-item"><div class="cat-name">Encroachments</div><div class="cat-desc">Shops on roads &amp; footpaths</div></div>
+    <div class="cat-item"><div class="cat-name">Streetlight Issues</div><div class="cat-desc">Faulty &amp; non-working lights</div></div>
+    <div class="cat-item"><div class="cat-name">Road Maintenance</div><div class="cat-desc">Potholes &amp; damaged roads</div></div>
+    <div class="cat-item"><div class="cat-name">Drainage</div><div class="cat-desc">Blocked drains &amp; waterlogging</div></div>
+    <div class="cat-item"><div class="cat-name">Horticulture</div><div class="cat-desc">Parks &amp; overgrown trees</div></div>
+    <div class="cat-item"><div class="cat-name">Stray Animals</div><div class="cat-desc">Dogs &amp; cattle nuisance</div></div>
+    <div class="cat-item"><div class="cat-name">C&amp;D Waste</div><div class="cat-desc">Construction debris dumping</div></div>
+    <div class="cat-item"><div class="cat-name">Public Health</div><div class="cat-desc">Mosquito breeding &amp; carcass</div></div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section section-alt" id="how">
+  <div class="section-header">
+    <span class="section-label">Process</span>
+    <h2 class="section-title">How It Works</h2>
+    <p class="section-sub">A simple four-step process to get your complaint registered and resolved.</p>
+  </div>
+  <div class="how-grid">
+    <div class="how-step">
+      <div class="step-num">1</div>
+      <h5>Register &amp; Sign In</h5>
+      <p>Create a citizen account with your name, email, and contact details. Existing users may sign in directly to their dashboard.</p>
+    </div>
+    <div class="how-step">
+      <div class="step-num">2</div>
+      <h5>Submit Complaint</h5>
+      <p>Fill in the complaint form, select a category and priority, and optionally attach photographic or documentary evidence.</p>
+    </div>
+    <div class="how-step">
+      <div class="step-num">3</div>
+      <h5>Track Progress</h5>
+      <p>Monitor real-time status changes and admin remarks through your personal dashboard. Receive live notifications on every update.</p>
+    </div>
+    <div class="how-step">
+      <div class="step-num">4</div>
+      <h5>Resolution or Appeal</h5>
+      <p>Once resolved, the case closes. If unsatisfied, reopen it with a reason for a fresh administrative review.</p>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <h2>Ready to Raise a Complaint?</h2>
+  <p>Join the civic platform designed to make local administration more transparent, accountable, and responsive to citizens.</p>
+  <div class="cta-btns">
+    <a onclick="nav('register')" class="btn btn-white btn-lg" style="cursor:pointer">Create an Account</a>
+    <a onclick="nav('login')" class="btn btn-outline-white btn-lg" style="cursor:pointer">Sign In</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>&copy; 2024 Grievance Management System &mdash; Government Civic Services Portal</p>
+  <div class="footer-links">
+    <a onclick="nav('login')" style="cursor:pointer">Citizen Login</a>
+    <a onclick="nav('admin/login')" style="cursor:pointer">Admin Login</a>
+    <a onclick="nav('register')" style="cursor:pointer">Register</a>
+  </div>
+</footer>
+
+<script>
+  function nav(page) {
+    const isServer = location.protocol === 'http:' || location.protocol === 'https:';
+    if (isServer) {
+      location.href = '/' + page;
+    } else {
+      const base = location.href.replace(/\/[^/]*$/, '/');
+      const map = { 'login': base + 'login.html', 'register': base + 'register.html', 'admin/login': base + 'admin/login.html' };
+      location.href = map[page] || base + page + '.html';
+    }
+  }
+  const token = localStorage.getItem('gms_token');
+  const user = (() => { try { return JSON.parse(localStorage.getItem('gms_user')); } catch { return null; } })();
+  if (token && user && (location.protocol === 'http:' || location.protocol === 'https:')) {
+    location.href = user.role === 'admin' ? '/admin/dashboard' : '/user/dashboard';
+  }
+</script>
+</body>
+</html>
