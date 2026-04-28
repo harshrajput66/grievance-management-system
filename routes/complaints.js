@@ -1,7 +1,6 @@
 // ─── routes/complaints.js ────────────────────────────────────
 // Citizen-facing complaint APIs
 const express = require('express');
-const path    = require('path');
 const { verifyToken, requireUser } = require('../middleware/auth');
 const router  = express.Router();
 
@@ -23,19 +22,27 @@ router.get('/stats', async (req, res) => {
   const db = req.app.locals.db;
   const userId = req.user.id;
   try {
-    const [rows] = await db.execute(
-      `SELECT
-         COUNT(*) AS total,
-         SUM(status = 'Submitted')   AS submitted,
-         SUM(status = 'Pending')     AS pending,
-         SUM(status = 'In Progress') AS in_progress,
-         SUM(status = 'Resolved')    AS resolved,
-         SUM(status = 'Rejected')    AS rejected,
-         SUM(status = 'Reopened')    AS reopened
-       FROM complaints WHERE user_id = ?`,
-      [userId]
-    );
-    return res.json({ success: true, stats: rows[0] });
+    const snapshot = await db.collection('complaints').where('user_id', '==', userId).get();
+    const stats = {
+      total: snapshot.size,
+      submitted: 0,
+      pending: 0,
+      in_progress: 0,
+      resolved: 0,
+      rejected: 0,
+      reopened: 0
+    };
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      const st = data.status;
+      if (st === 'Submitted') stats.submitted++;
+      if (st === 'Pending') stats.pending++;
+      if (st === 'In Progress') stats.in_progress++;
+      if (st === 'Resolved') stats.resolved++;
+      if (st === 'Rejected') stats.rejected++;
+      if (st === 'Reopened') stats.reopened++;
+    });
+    return res.json({ success: true, stats });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ success: false, message: 'Failed to load stats.' });
@@ -48,37 +55,44 @@ router.get('/', async (req, res) => {
   const userId = req.user.id;
   const page   = Math.max(1, parseInt(req.query.page)  || 1);
   const limit  = Math.min(50, parseInt(req.query.limit) || 10);
-  const offset = (page - 1) * limit;
 
   const { search, status, category, priority } = req.query;
 
-  let where  = 'WHERE user_id = ?';
-  const vals = [userId];
-
-  if (search) {
-    where += ' AND (complaint_id LIKE ? OR title LIKE ?)';
-    vals.push(`%${search}%`, `%${search}%`);
-  }
-  if (status)   { where += ' AND status = ?';   vals.push(status); }
-  if (category) { where += ' AND category = ?'; vals.push(category); }
-  if (priority) { where += ' AND priority = ?'; vals.push(priority); }
-
   try {
-    const [[{ total }]] = await db.execute(
-      `SELECT COUNT(*) AS total FROM complaints ${where}`, vals
-    );
+    let query = db.collection('complaints').where('user_id', '==', userId);
+    
+    if (status) query = query.where('status', '==', status);
+    if (category) query = query.where('category', '==', category);
+    if (priority) query = query.where('priority', '==', priority);
 
-    const [complaints] = await db.execute(
-      `SELECT complaint_id, title, category, priority, status, admin_remark, created_at
-       FROM complaints ${where}
-       ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`,
-      vals
-    );
+    const snapshot = await query.orderBy('created_at', 'desc').get();
+    let allComplaints = [];
+    
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      // Handle created_at formatting safely if it's a Firestore Timestamp
+      if (data.created_at && data.created_at.toDate) {
+        data.created_at = data.created_at.toDate();
+      }
+      allComplaints.push({ id: doc.id, ...data });
+    });
+
+    if (search) {
+      const lowerSearch = search.toLowerCase();
+      allComplaints = allComplaints.filter(c => 
+        (c.complaint_id && c.complaint_id.toLowerCase().includes(lowerSearch)) || 
+        (c.title && c.title.toLowerCase().includes(lowerSearch))
+      );
+    }
+
+    const total = allComplaints.length;
+    const offset = (page - 1) * limit;
+    const paginated = allComplaints.slice(offset, offset + limit);
 
     return res.json({
       success: true,
-      complaints,
-      pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) }
+      complaints: paginated,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) }
     });
   } catch (err) {
     console.error(err);
@@ -89,6 +103,7 @@ router.get('/', async (req, res) => {
 // ─── POST /api/complaints ────────────────────────────────────
 router.post('/', async (req, res) => {
   const db     = req.app.locals.db;
+  const admin  = req.app.locals.admin;
   const userId = req.user.id;
   const upload = req.app.locals.upload;
 
@@ -108,31 +123,44 @@ router.post('/', async (req, res) => {
 
     let complaintId;
     let attempts = 0;
-    do {
+    while (attempts < 5) {
       complaintId = generateComplaintId();
-      const [ex] = await db.execute('SELECT id FROM complaints WHERE complaint_id = ?', [complaintId]);
-      if (ex.length === 0) break;
+      const ex = await db.collection('complaints').where('complaint_id', '==', complaintId).get();
+      if (ex.empty) break;
       attempts++;
-    } while (attempts < 5);
+    }
 
-    const proofUrl  = req.file ? `/uploads/${req.file.filename}` : null;
+    // Since we use multer-storage-cloudinary, req.file.path contains the Cloudinary URL
+    const proofUrl  = req.file ? req.file.path : null;
     const proofName = req.file ? req.file.originalname : null;
 
     try {
-      await db.execute(
-        `INSERT INTO complaints
-           (complaint_id, user_id, title, description, category, priority, status, location, proof_url, proof_original_name)
-         VALUES (?, ?, ?, ?, ?, ?, 'Submitted', ?, ?, ?)`,
-        [complaintId, userId, title.trim(), description.trim(),
-         category, priority || 'Medium', location || null, proofUrl, proofName]
-      );
+      const newComplaint = {
+        complaint_id: complaintId,
+        user_id: userId,
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        priority: priority || 'Medium',
+        status: 'Submitted',
+        location: location || null,
+        proof_url: proofUrl,
+        proof_original_name: proofName,
+        created_at: admin.firestore.FieldValue.serverTimestamp(),
+        updated_at: admin.firestore.FieldValue.serverTimestamp()
+      };
+
+      await db.collection('complaints').add(newComplaint);
 
       // Insert timeline entry
-      await db.execute(
-        `INSERT INTO complaint_updates (complaint_id, status, remark, updated_by, action)
-         VALUES (?, 'Submitted', 'Complaint submitted by citizen.', ?, 'submitted')`,
-        [complaintId, userId]
-      );
+      await db.collection('complaint_updates').add({
+        complaint_id: complaintId,
+        status: 'Submitted',
+        remark: 'Complaint submitted by citizen.',
+        updated_by: userId,
+        action: 'submitted',
+        created_at: admin.firestore.FieldValue.serverTimestamp()
+      });
 
       // Emit socket event for admin
       const io = req.app.locals.io;
@@ -153,28 +181,47 @@ router.get('/:id', async (req, res) => {
   const cid    = req.params.id;
 
   try {
-    const [rows] = await db.execute(
-      `SELECT c.*, u.name AS user_name, u.email AS user_email, u.phone AS user_phone
-       FROM complaints c
-       JOIN users u ON u.id = c.user_id
-       WHERE c.complaint_id = ? AND c.user_id = ?`,
-      [cid, userId]
-    );
+    const cSnapshot = await db.collection('complaints')
+      .where('complaint_id', '==', cid)
+      .where('user_id', '==', userId)
+      .get();
 
-    if (rows.length === 0) {
+    if (cSnapshot.empty) {
       return res.status(404).json({ success: false, message: 'Complaint not found.' });
     }
 
-    const [timeline] = await db.execute(
-      `SELECT cu.*, u.name AS updated_by_name
-       FROM complaint_updates cu
-       LEFT JOIN users u ON u.id = cu.updated_by
-       WHERE cu.complaint_id = ?
-       ORDER BY cu.created_at ASC`,
-      [cid]
-    );
+    let complaint = cSnapshot.docs[0].data();
+    if (complaint.created_at && complaint.created_at.toDate) complaint.created_at = complaint.created_at.toDate();
+    if (complaint.updated_at && complaint.updated_at.toDate) complaint.updated_at = complaint.updated_at.toDate();
 
-    return res.json({ success: true, complaint: rows[0], timeline });
+    // Fetch user details
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (userDoc.exists) {
+      const userData = userDoc.data();
+      complaint.user_name = userData.name;
+      complaint.user_email = userData.email;
+      complaint.user_phone = userData.phone;
+    }
+
+    // Fetch timeline
+    const tSnapshot = await db.collection('complaint_updates')
+      .where('complaint_id', '==', cid)
+      .orderBy('created_at', 'asc')
+      .get();
+      
+    let timeline = [];
+    for (let doc of tSnapshot.docs) {
+      const t = doc.data();
+      if (t.created_at && t.created_at.toDate) t.created_at = t.created_at.toDate();
+      
+      if (t.updated_by) {
+        const uDoc = await db.collection('users').doc(t.updated_by).get();
+        if (uDoc.exists) t.updated_by_name = uDoc.data().name;
+      }
+      timeline.push(t);
+    }
+
+    return res.json({ success: true, complaint, timeline });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ success: false, message: 'Failed to load complaint.' });
@@ -184,6 +231,7 @@ router.get('/:id', async (req, res) => {
 // ─── POST /api/complaints/:id/reopen ─────────────────────────
 router.post('/:id/reopen', requireUser, async (req, res) => {
   const db     = req.app.locals.db;
+  const admin  = req.app.locals.admin;
   const userId = req.user.id;
   const cid    = req.params.id;
   const { reason } = req.body;
@@ -193,28 +241,35 @@ router.post('/:id/reopen', requireUser, async (req, res) => {
   }
 
   try {
-    const [rows] = await db.execute(
-      `SELECT id, status FROM complaints WHERE complaint_id = ? AND user_id = ?`,
-      [cid, userId]
-    );
+    const cSnapshot = await db.collection('complaints')
+      .where('complaint_id', '==', cid)
+      .where('user_id', '==', userId)
+      .get();
 
-    if (rows.length === 0) {
+    if (cSnapshot.empty) {
       return res.status(404).json({ success: false, message: 'Complaint not found.' });
     }
-    if (!['Resolved', 'Rejected'].includes(rows[0].status)) {
+
+    const docRef = cSnapshot.docs[0].ref;
+    const data = cSnapshot.docs[0].data();
+
+    if (!['Resolved', 'Rejected'].includes(data.status)) {
       return res.status(400).json({ success: false, message: 'Only Resolved or Rejected complaints can be reopened.' });
     }
 
-    await db.execute(
-      `UPDATE complaints SET status = 'Reopened', updated_at = NOW() WHERE complaint_id = ?`,
-      [cid]
-    );
+    await docRef.update({
+      status: 'Reopened',
+      updated_at: admin.firestore.FieldValue.serverTimestamp()
+    });
 
-    await db.execute(
-      `INSERT INTO complaint_updates (complaint_id, status, remark, updated_by, action)
-       VALUES (?, 'Reopened', ?, ?, 'reopened')`,
-      [cid, `Reopened by citizen: ${reason.trim()}`, userId]
-    );
+    await db.collection('complaint_updates').add({
+      complaint_id: cid,
+      status: 'Reopened',
+      remark: `Reopened by citizen: ${reason.trim()}`,
+      updated_by: userId,
+      action: 'reopened',
+      created_at: admin.firestore.FieldValue.serverTimestamp()
+    });
 
     const io = req.app.locals.io;
     if (io) io.to('admin_room').emit('complaint:reopened', { complaintId: cid });

@@ -1,47 +1,50 @@
-// ─── scripts/create-admin.js ──────────────────────────────────
-// Run once to create the default admin account:
-//   node scripts/create-admin.js
-// ─────────────────────────────────────────────────────────────
 require('dotenv').config();
+const admin = require('firebase-admin');
 const bcrypt = require('bcryptjs');
-const mysql  = require('mysql2/promise');
 
-async function createAdmin() {
-  const conn = await mysql.createConnection({
-    host:     process.env.DB_HOST     || 'localhost',
-    port:     process.env.DB_PORT     || 3306,
-    user:     process.env.DB_USER     || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME     || 'gms_db',
-  });
-
-  const email    = 'admin@gms.gov.in';
-  const password = 'admin123';
-  const name     = 'GMS Administrator';
-
-  const hash = await bcrypt.hash(password, 10);
-
-  const [existing] = await conn.execute('SELECT id FROM users WHERE email = ?', [email]);
-  if (existing.length > 0) {
-    console.log('✅ Admin already exists:', email);
-    await conn.end();
-    return;
-  }
-
-  await conn.execute(
-    'INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)',
-    [name, email, hash, 'admin']
-  );
-
-  console.log('✅ Admin account created!');
-  console.log('   Email   :', email);
-  console.log('   Password:', password);
-  console.log('   ⚠️  Change the password before deploying to production.');
-
-  await conn.end();
+let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+if (privateKey && privateKey.startsWith('"') && privateKey.endsWith('"')) {
+  privateKey = privateKey.slice(1, -1).replace(/\\n/g, '\n');
+} else if (privateKey) {
+  privateKey = privateKey.replace(/\\n/g, '\n');
 }
 
-createAdmin().catch(err => {
-  console.error('❌ Error creating admin:', err.message);
+admin.initializeApp({
+  credential: admin.credential.cert({
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    privateKey: privateKey
+  })
+});
+const db = admin.firestore();
+
+async function createAdmin() {
+  const email = 'admin@gms.gov.in';
+  const password = 'admin123';
+  const name = 'GMS Administrator';
+
+  const usersRef = db.collection('users');
+  const existing = await usersRef.where('email', '==', email).get();
+
+  if (!existing.empty) {
+    console.log('ℹ️  Admin account already exists in Firestore.');
+  } else {
+    const hash = await bcrypt.hash(password, 10);
+    await usersRef.add({
+      name: name,
+      email: email,
+      password_hash: hash,
+      role: 'admin',
+      created_at: admin.firestore.FieldValue.serverTimestamp(),
+      updated_at: admin.firestore.FieldValue.serverTimestamp()
+    });
+    console.log('✅ Admin account created in Firestore!');
+    console.log('   📧 Email   :', email);
+    console.log('   🔑 Password:', password);
+  }
+}
+
+createAdmin().then(() => process.exit(0)).catch(err => {
+  console.error(err);
   process.exit(1);
 });

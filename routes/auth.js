@@ -16,6 +16,7 @@ function signToken(user) {
 // ─── POST /api/auth/register ─────────────────────────────────
 router.post('/register', async (req, res) => {
   const db = req.app.locals.db;
+  const admin = req.app.locals.admin;
   const { name, email, phone, address, password } = req.body;
 
   if (!name || !email || !password) {
@@ -26,18 +27,27 @@ router.post('/register', async (req, res) => {
   }
 
   try {
-    const [existing] = await db.execute('SELECT id FROM users WHERE email = ?', [email.toLowerCase()]);
-    if (existing.length > 0) {
+    const usersRef = db.collection('users');
+    const existing = await usersRef.where('email', '==', email.toLowerCase()).get();
+    
+    if (!existing.empty) {
       return res.status(409).json({ success: false, message: 'An account with this email already exists.' });
     }
 
     const hash = await bcrypt.hash(password, 10);
-    const [result] = await db.execute(
-      'INSERT INTO users (name, email, phone, address, password_hash, role) VALUES (?, ?, ?, ?, ?, ?)',
-      [name.trim(), email.toLowerCase().trim(), phone || null, address || null, hash, 'user']
-    );
+    const newUser = {
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
+      phone: phone || null,
+      address: address || null,
+      password_hash: hash,
+      role: 'user',
+      created_at: admin.firestore.FieldValue.serverTimestamp(),
+      updated_at: admin.firestore.FieldValue.serverTimestamp()
+    };
 
-    const user  = { id: result.insertId, name: name.trim(), email: email.toLowerCase(), role: 'user' };
+    const docRef = await usersRef.add(newUser);
+    const user  = { id: docRef.id, name: newUser.name, email: newUser.email, role: 'user' };
     const token = signToken(user);
 
     return res.status(201).json({ success: true, token, user });
@@ -57,16 +67,16 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    const [rows] = await db.execute(
-      'SELECT id, name, email, password_hash, role FROM users WHERE email = ?',
-      [email.toLowerCase().trim()]
-    );
+    const usersRef = db.collection('users');
+    const snapshot = await usersRef.where('email', '==', email.toLowerCase().trim()).get();
 
-    if (rows.length === 0) {
+    if (snapshot.empty) {
       return res.status(401).json({ success: false, message: 'Invalid email or password.' });
     }
 
-    const user = rows[0];
+    const doc = snapshot.docs[0];
+    const user = { id: doc.id, ...doc.data() };
+
     if (user.role !== 'user') {
       return res.status(403).json({ success: false, message: 'Please use the admin login page.' });
     }
@@ -96,16 +106,16 @@ router.post('/admin/login', async (req, res) => {
   }
 
   try {
-    const [rows] = await db.execute(
-      'SELECT id, name, email, password_hash, role FROM users WHERE email = ? AND role = ?',
-      [email.toLowerCase().trim(), 'admin']
-    );
+    const usersRef = db.collection('users');
+    const snapshot = await usersRef.where('email', '==', email.toLowerCase().trim()).where('role', '==', 'admin').get();
 
-    if (rows.length === 0) {
+    if (snapshot.empty) {
       return res.status(401).json({ success: false, message: 'Invalid admin credentials.' });
     }
 
-    const user  = rows[0];
+    const doc = snapshot.docs[0];
+    const user = { id: doc.id, ...doc.data() };
+
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) {
       return res.status(401).json({ success: false, message: 'Invalid admin credentials.' });

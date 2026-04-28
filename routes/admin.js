@@ -11,24 +11,42 @@ router.use(verifyToken, requireAdmin);
 router.get('/stats', async (req, res) => {
   const db = req.app.locals.db;
   try {
-    const [[stats]] = await db.execute(
-      `SELECT
-         COUNT(*)                     AS total,
-         SUM(status = 'Submitted')    AS submitted,
-         SUM(status = 'Pending')      AS pending,
-         SUM(status = 'In Progress')  AS in_progress,
-         SUM(status = 'Resolved')     AS resolved,
-         SUM(status = 'Rejected')     AS rejected,
-         SUM(status = 'Reopened')     AS reopened,
-         COUNT(DISTINCT user_id)      AS total_users
-       FROM complaints`
-    );
+    const cSnapshot = await db.collection('complaints').get();
+    const uSnapshot = await db.collection('users').where('role', '==', 'user').get();
+    
+    const stats = {
+      total: cSnapshot.size,
+      submitted: 0,
+      pending: 0,
+      in_progress: 0,
+      resolved: 0,
+      rejected: 0,
+      reopened: 0,
+      total_users: uSnapshot.size,
+      today: 0
+    };
 
-    const [[todayRow]] = await db.execute(
-      `SELECT COUNT(*) AS today FROM complaints WHERE DATE(created_at) = CURDATE()`
-    );
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
 
-    return res.json({ success: true, stats: { ...stats, today: todayRow.today } });
+    cSnapshot.forEach(doc => {
+      const data = doc.data();
+      const st = data.status;
+      if (st === 'Submitted') stats.submitted++;
+      if (st === 'Pending') stats.pending++;
+      if (st === 'In Progress') stats.in_progress++;
+      if (st === 'Resolved') stats.resolved++;
+      if (st === 'Rejected') stats.rejected++;
+      if (st === 'Reopened') stats.reopened++;
+
+      let createdAt = data.created_at;
+      if (createdAt && createdAt.toDate) createdAt = createdAt.toDate();
+      if (createdAt && createdAt >= todayStart) {
+        stats.today++;
+      }
+    });
+
+    return res.json({ success: true, stats });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ success: false, message: 'Failed to load stats.' });
@@ -40,42 +58,53 @@ router.get('/complaints', async (req, res) => {
   const db    = req.app.locals.db;
   const page  = Math.max(1, parseInt(req.query.page)  || 1);
   const limit = Math.min(50, parseInt(req.query.limit) || 15);
-  const offset = (page - 1) * limit;
 
   const { search, status, category, priority } = req.query;
 
-  let where  = 'WHERE 1=1';
-  const vals = [];
-
-  if (search) {
-    where += ' AND (c.complaint_id LIKE ? OR c.title LIKE ? OR u.name LIKE ? OR u.email LIKE ?)';
-    vals.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
-  }
-  if (status)   { where += ' AND c.status = ?';   vals.push(status); }
-  if (category) { where += ' AND c.category = ?'; vals.push(category); }
-  if (priority) { where += ' AND c.priority = ?'; vals.push(priority); }
-
   try {
-    const [[{ total }]] = await db.execute(
-      `SELECT COUNT(*) AS total FROM complaints c JOIN users u ON u.id = c.user_id ${where}`,
-      vals
-    );
+    let query = db.collection('complaints');
+    if (status) query = query.where('status', '==', status);
+    if (category) query = query.where('category', '==', category);
+    if (priority) query = query.where('priority', '==', priority);
 
-    const [complaints] = await db.execute(
-      `SELECT c.complaint_id, c.title, c.category, c.priority, c.status,
-              c.admin_remark, c.created_at, c.updated_at,
-              u.name AS user_name, u.email AS user_email
-       FROM complaints c
-       JOIN users u ON u.id = c.user_id
-       ${where}
-       ORDER BY c.created_at DESC LIMIT ${limit} OFFSET ${offset}`,
-      vals
-    );
+    const snapshot = await query.orderBy('created_at', 'desc').get();
+    let allComplaints = [];
+
+    // Map user_id to user_name, user_email
+    const userDocs = await db.collection('users').get();
+    const userMap = {};
+    userDocs.forEach(d => { userMap[d.id] = d.data(); });
+
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      if (data.created_at && data.created_at.toDate) data.created_at = data.created_at.toDate();
+      if (data.updated_at && data.updated_at.toDate) data.updated_at = data.updated_at.toDate();
+      
+      const user = userMap[data.user_id] || {};
+      data.user_name = user.name || 'Unknown';
+      data.user_email = user.email || 'Unknown';
+
+      allComplaints.push({ id: doc.id, ...data });
+    });
+
+    if (search) {
+      const lowerSearch = search.toLowerCase();
+      allComplaints = allComplaints.filter(c => 
+        (c.complaint_id && c.complaint_id.toLowerCase().includes(lowerSearch)) || 
+        (c.title && c.title.toLowerCase().includes(lowerSearch)) ||
+        (c.user_name && c.user_name.toLowerCase().includes(lowerSearch)) ||
+        (c.user_email && c.user_email.toLowerCase().includes(lowerSearch))
+      );
+    }
+
+    const total = allComplaints.length;
+    const offset = (page - 1) * limit;
+    const paginated = allComplaints.slice(offset, offset + limit);
 
     return res.json({
       success: true,
-      complaints,
-      pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) }
+      complaints: paginated,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) }
     });
   } catch (err) {
     console.error(err);
@@ -86,44 +115,69 @@ router.get('/complaints', async (req, res) => {
 // ─── GET /api/admin/complaints/:id ───────────────────────────
 router.get('/complaints/:id', async (req, res) => {
   const db  = req.app.locals.db;
+  const admin = req.app.locals.admin;
   const cid = req.params.id;
 
   try {
     // Mark as viewed in timeline if first admin view
-    const [viewCheck] = await db.execute(
-      `SELECT id FROM complaint_updates WHERE complaint_id = ? AND action = 'viewed' LIMIT 1`,
-      [cid]
-    );
-    if (viewCheck.length === 0) {
-      await db.execute(
-        `INSERT INTO complaint_updates (complaint_id, status, remark, updated_by, action)
-         SELECT ?, status, 'Viewed by admin', ?, 'viewed' FROM complaints WHERE complaint_id = ?`,
-        [cid, req.user.id, cid]
-      );
-    }
+    const viewCheck = await db.collection('complaint_updates')
+      .where('complaint_id', '==', cid)
+      .where('action', '==', 'viewed')
+      .get();
 
-    const [rows] = await db.execute(
-      `SELECT c.*, u.name AS user_name, u.email AS user_email, u.phone AS user_phone, u.address AS user_address
-       FROM complaints c
-       JOIN users u ON u.id = c.user_id
-       WHERE c.complaint_id = ?`,
-      [cid]
-    );
-
-    if (rows.length === 0) {
+    const cSnapshot = await db.collection('complaints').where('complaint_id', '==', cid).get();
+    
+    if (cSnapshot.empty) {
       return res.status(404).json({ success: false, message: 'Complaint not found.' });
     }
 
-    const [timeline] = await db.execute(
-      `SELECT cu.*, u.name AS updated_by_name
-       FROM complaint_updates cu
-       LEFT JOIN users u ON u.id = cu.updated_by
-       WHERE cu.complaint_id = ?
-       ORDER BY cu.created_at ASC`,
-      [cid]
-    );
+    const complaintDoc = cSnapshot.docs[0];
+    const complaint = complaintDoc.data();
+    if (complaint.created_at && complaint.created_at.toDate) complaint.created_at = complaint.created_at.toDate();
+    if (complaint.updated_at && complaint.updated_at.toDate) complaint.updated_at = complaint.updated_at.toDate();
 
-    return res.json({ success: true, complaint: rows[0], timeline });
+    if (viewCheck.empty) {
+      await db.collection('complaint_updates').add({
+        complaint_id: cid,
+        status: complaint.status,
+        remark: 'Viewed by admin',
+        updated_by: req.user.id,
+        action: 'viewed',
+        created_at: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+
+    // Attach user data
+    if (complaint.user_id) {
+      const uDoc = await db.collection('users').doc(complaint.user_id).get();
+      if (uDoc.exists) {
+        const uData = uDoc.data();
+        complaint.user_name = uData.name;
+        complaint.user_email = uData.email;
+        complaint.user_phone = uData.phone;
+        complaint.user_address = uData.address;
+      }
+    }
+
+    // Timeline
+    const tSnapshot = await db.collection('complaint_updates')
+      .where('complaint_id', '==', cid)
+      .orderBy('created_at', 'asc')
+      .get();
+      
+    let timeline = [];
+    for (let doc of tSnapshot.docs) {
+      const t = doc.data();
+      if (t.created_at && t.created_at.toDate) t.created_at = t.created_at.toDate();
+      
+      if (t.updated_by) {
+        const uDoc = await db.collection('users').doc(t.updated_by).get();
+        if (uDoc.exists) t.updated_by_name = uDoc.data().name;
+      }
+      timeline.push(t);
+    }
+
+    return res.json({ success: true, complaint, timeline });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ success: false, message: 'Failed to load complaint.' });
@@ -133,6 +187,7 @@ router.get('/complaints/:id', async (req, res) => {
 // ─── PUT /api/admin/complaints/:id/status ────────────────────
 router.put('/complaints/:id/status', async (req, res) => {
   const db  = req.app.locals.db;
+  const admin = req.app.locals.admin;
   const cid = req.params.id;
   const { status, remark } = req.body;
 
@@ -145,28 +200,32 @@ router.put('/complaints/:id/status', async (req, res) => {
   }
 
   try {
-    const [rows] = await db.execute(
-      'SELECT id, user_id, title FROM complaints WHERE complaint_id = ?', [cid]
-    );
-    if (rows.length === 0) {
+    const cSnapshot = await db.collection('complaints').where('complaint_id', '==', cid).get();
+    if (cSnapshot.empty) {
       return res.status(404).json({ success: false, message: 'Complaint not found.' });
     }
 
-    await db.execute(
-      `UPDATE complaints SET status = ?, admin_remark = ?, updated_at = NOW() WHERE complaint_id = ?`,
-      [status, remark.trim(), cid]
-    );
+    const docRef = cSnapshot.docs[0].ref;
+    const complaint = cSnapshot.docs[0].data();
 
-    await db.execute(
-      `INSERT INTO complaint_updates (complaint_id, status, remark, updated_by, action)
-       VALUES (?, ?, ?, ?, 'status_change')`,
-      [cid, status, remark.trim(), req.user.id]
-    );
+    await docRef.update({
+      status,
+      admin_remark: remark.trim(),
+      updated_at: admin.firestore.FieldValue.serverTimestamp()
+    });
 
-    // Real-time notification to the specific user
+    await db.collection('complaint_updates').add({
+      complaint_id: cid,
+      status,
+      remark: remark.trim(),
+      updated_by: req.user.id,
+      action: 'status_change',
+      created_at: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Real-time notification
     const io = req.app.locals.io;
     if (io) {
-      const complaint = rows[0];
       io.to(`user_${complaint.user_id}`).emit('complaint:notification', {
         complaintId: cid,
         status,
@@ -187,15 +246,36 @@ router.put('/complaints/:id/status', async (req, res) => {
 router.get('/users', async (req, res) => {
   const db = req.app.locals.db;
   try {
-    const [users] = await db.execute(
-      `SELECT u.id, u.name, u.email, u.phone, u.created_at,
-              COUNT(c.id) AS complaint_count
-       FROM users u
-       LEFT JOIN complaints c ON c.user_id = u.id
-       WHERE u.role = 'user'
-       GROUP BY u.id
-       ORDER BY u.created_at DESC`
-    );
+    const usersSnapshot = await db.collection('users').where('role', '==', 'user').get();
+    const complaintsSnapshot = await db.collection('complaints').get();
+
+    const counts = {};
+    complaintsSnapshot.forEach(doc => {
+      const uid = doc.data().user_id;
+      counts[uid] = (counts[uid] || 0) + 1;
+    });
+
+    let users = [];
+    usersSnapshot.forEach(doc => {
+      const data = doc.data();
+      if (data.created_at && data.created_at.toDate) data.created_at = data.created_at.toDate();
+      users.push({
+        id: doc.id,
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        created_at: data.created_at,
+        complaint_count: counts[doc.id] || 0
+      });
+    });
+
+    // Sort by created_at desc
+    users.sort((a, b) => {
+      if (!a.created_at) return 1;
+      if (!b.created_at) return -1;
+      return b.created_at - a.created_at;
+    });
+
     return res.json({ success: true, users });
   } catch (err) {
     console.error(err);
