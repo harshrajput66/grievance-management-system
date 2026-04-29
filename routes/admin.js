@@ -67,7 +67,7 @@ router.get('/complaints', async (req, res) => {
     if (category) query = query.where('category', '==', category);
     if (priority) query = query.where('priority', '==', priority);
 
-    const snapshot = await query.orderBy('created_at', 'desc').get();
+    const snapshot = await query.get();
     let allComplaints = [];
 
     // Map user_id to user_name, user_email
@@ -96,6 +96,13 @@ router.get('/complaints', async (req, res) => {
         (c.user_email && c.user_email.toLowerCase().includes(lowerSearch))
       );
     }
+
+    // Sort by created_at desc in memory to avoid missing Firestore composite index errors
+    allComplaints.sort((a, b) => {
+      if (!a.created_at) return 1;
+      if (!b.created_at) return -1;
+      return b.created_at.getTime() - a.created_at.getTime();
+    });
 
     const total = allComplaints.length;
     const offset = (page - 1) * limit;
@@ -162,7 +169,6 @@ router.get('/complaints/:id', async (req, res) => {
     // Timeline
     const tSnapshot = await db.collection('complaint_updates')
       .where('complaint_id', '==', cid)
-      .orderBy('created_at', 'asc')
       .get();
       
     let timeline = [];
@@ -176,6 +182,13 @@ router.get('/complaints/:id', async (req, res) => {
       }
       timeline.push(t);
     }
+
+    // Sort timeline ascending by created_at
+    timeline.sort((a, b) => {
+      if (!a.created_at) return -1;
+      if (!b.created_at) return 1;
+      return a.created_at.getTime() - b.created_at.getTime();
+    });
 
     return res.json({ success: true, complaint, timeline });
   } catch (err) {

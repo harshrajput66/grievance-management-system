@@ -65,7 +65,7 @@ router.get('/', async (req, res) => {
     if (category) query = query.where('category', '==', category);
     if (priority) query = query.where('priority', '==', priority);
 
-    const snapshot = await query.orderBy('created_at', 'desc').get();
+    const snapshot = await query.get();
     let allComplaints = [];
     
     snapshot.forEach(doc => {
@@ -84,6 +84,12 @@ router.get('/', async (req, res) => {
         (c.title && c.title.toLowerCase().includes(lowerSearch))
       );
     }
+
+    allComplaints.sort((a, b) => {
+      if (!a.created_at) return 1;
+      if (!b.created_at) return -1;
+      return b.created_at.getTime() - a.created_at.getTime();
+    });
 
     const total = allComplaints.length;
     const offset = (page - 1) * limit;
@@ -206,7 +212,6 @@ router.get('/:id', async (req, res) => {
     // Fetch timeline
     const tSnapshot = await db.collection('complaint_updates')
       .where('complaint_id', '==', cid)
-      .orderBy('created_at', 'asc')
       .get();
       
     let timeline = [];
@@ -220,6 +225,12 @@ router.get('/:id', async (req, res) => {
       }
       timeline.push(t);
     }
+
+    timeline.sort((a, b) => {
+      if (!a.created_at) return -1;
+      if (!b.created_at) return 1;
+      return a.created_at.getTime() - b.created_at.getTime();
+    });
 
     return res.json({ success: true, complaint, timeline });
   } catch (err) {
