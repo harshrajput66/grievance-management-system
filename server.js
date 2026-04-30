@@ -9,8 +9,6 @@ const path      = require('path');
 const cors      = require('cors');
 const jwt       = require('jsonwebtoken');
 const multer    = require('multer');
-const { Server } = require('socket.io');
-
 // Firebase Admin Setup
 const admin = require('firebase-admin');
 
@@ -57,9 +55,6 @@ const upload = multer({
 
 const app    = express();
 const server = http.createServer(app);
-const io     = new Server(server, {
-  cors: { origin: '*', methods: ['GET', 'POST'] }
-});
 
 const PORT = process.env.PORT || 3000;
 
@@ -74,7 +69,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ─── Attach shared objects to app ─────────────────────────────
 app.use((req, res, next) => {
   req.app.locals.db     = db;
-  req.app.locals.io     = io;
   req.app.locals.upload = upload;
   req.app.locals.admin  = admin; // Pass admin reference if needed (e.g. for FieldValue)
   next();
@@ -85,36 +79,7 @@ app.use('/api/auth',       require('./routes/auth'));
 app.use('/api/complaints', require('./routes/complaints'));
 app.use('/api/admin',      require('./routes/admin'));
 
-// ─── Socket.IO ───────────────────────────────────────────────
-io.use((socket, next) => {
-  const token = socket.handshake.auth?.token;
-  if (!token) return next(new Error('Authentication required'));
-  try {
-    socket.user = jwt.verify(token, process.env.JWT_SECRET);
-    next();
-  } catch {
-    next(new Error('Invalid token'));
-  }
-});
 
-io.on('connection', (socket) => {
-  const user = socket.user;
-  console.log(`[Socket] Connected: ${user.name} (${user.role})`);
-
-  if (user.role === 'admin') {
-    socket.join('admin_room');
-  }
-
-  socket.on('join:user', (userId) => {
-    if (String(user.id) === String(userId)) {
-      socket.join(`user_${userId}`);
-    }
-  });
-
-  socket.on('disconnect', () => {
-    console.log(`[Socket] Disconnected: ${user.name}`);
-  });
-});
 
 // ─── SPA HTML Page Routing ────────────────────────────────────
 // User pages

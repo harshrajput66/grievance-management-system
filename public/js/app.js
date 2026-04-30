@@ -4,6 +4,68 @@
 
 const API_BASE = '/api';
 
+// ─── Firebase Realtime ─────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "REPLACE_WITH_YOUR_FIREBASE_API_KEY",
+  authDomain: "resolvex-ba0b9.firebaseapp.com",
+  projectId: "resolvex-ba0b9",
+  storageBucket: "resolvex-ba0b9.appspot.com",
+  messagingSenderId: "REPLACE_WITH_MESSAGING_SENDER_ID",
+  appId: "REPLACE_WITH_APP_ID"
+};
+
+let db = null;
+try {
+  if (typeof firebase !== 'undefined') {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+  }
+} catch (err) {
+  console.warn("Firebase config is missing or invalid. Real-time updates disabled.");
+}
+
+const FirebaseRealtime = {
+  listenForAdminUpdates(onNew, onReopened) {
+    if (!db) return () => {};
+    let isInitial = true;
+    return db.collection('complaints').onSnapshot(snapshot => {
+      if (isInitial) {
+        isInitial = false;
+        return;
+      }
+      snapshot.docChanges().forEach(change => {
+        const data = change.doc.data();
+        if (change.type === 'added') {
+          onNew({ complaintId: data.complaint_id, title: data.title });
+        }
+        if (change.type === 'modified' && data.status === 'Reopened') {
+          onReopened({ complaintId: data.complaint_id });
+        }
+      });
+    }, err => console.error(err));
+  },
+
+  listenForUserUpdates(userId, onStatusChange) {
+    if (!db || !userId) return () => {};
+    let isInitial = true;
+    return db.collection('complaints').where('user_id', '==', userId).onSnapshot(snapshot => {
+      if (isInitial) {
+        isInitial = false;
+        return;
+      }
+      snapshot.docChanges().forEach(change => {
+        if (change.type === 'modified') {
+          const data = change.doc.data();
+          onStatusChange({
+            complaintId: data.complaint_id,
+            status: data.status,
+            title: data.title
+          });
+        }
+      });
+    }, err => console.error(err));
+  }
+};
 // ─── Auth Helpers ────────────────────────────────────────────
 const Auth = {
   getToken: () => localStorage.getItem('gms_token'),

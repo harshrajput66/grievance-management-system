@@ -236,18 +236,6 @@ router.put('/complaints/:id/status', async (req, res) => {
       created_at: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    // Real-time notification
-    const io = req.app.locals.io;
-    if (io) {
-      io.to(`user_${complaint.user_id}`).emit('complaint:notification', {
-        complaintId: cid,
-        status,
-        message: `Your complaint "${complaint.title}" status updated to "${status}"`,
-        remark: remark.trim()
-      });
-      io.to('admin_room').emit('complaint:updated', { complaintId: cid, status });
-    }
-
     return res.json({ success: true, message: 'Complaint status updated successfully.' });
   } catch (err) {
     console.error(err);

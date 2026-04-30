@@ -168,10 +168,6 @@ router.post('/', async (req, res) => {
         created_at: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      // Emit socket event for admin
-      const io = req.app.locals.io;
-      if (io) io.to('admin_room').emit('complaint:new', { complaintId, title });
-
       return res.status(201).json({ success: true, complaintId });
     } catch (err) {
       console.error(err);
@@ -281,9 +277,6 @@ router.post('/:id/reopen', requireUser, async (req, res) => {
       action: 'reopened',
       created_at: admin.firestore.FieldValue.serverTimestamp()
     });
-
-    const io = req.app.locals.io;
-    if (io) io.to('admin_room').emit('complaint:reopened', { complaintId: cid });
 
     return res.json({ success: true, message: 'Complaint reopened successfully.' });
   } catch (err) {
